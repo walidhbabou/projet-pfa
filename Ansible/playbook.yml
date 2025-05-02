@@ -1,0 +1,48 @@
+---
+- name: Configuration du serveur EC2
+  hosts: servers
+  become: yes
+
+  tasks:
+    - name: Installer Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Activer et démarrer Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Installer Java (nécessaire pour Jenkins)
+      yum:
+        name: java-11-openjdk
+        state: present
+
+    - name: Ajouter le repo Jenkins
+      get_url:
+        url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+        dest: /etc/yum.repos.d/jenkins.repo
+
+    - name: Importer la clé Jenkins
+      rpm_key:
+        state: present
+        key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+
+    - name: Installer Jenkins
+      yum:
+        name: jenkins
+        state: present
+
+    - name: Démarrer Jenkins
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Installer kubeadm/kubelet/kubectl (optionnel)
+      shell: |
+        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+        apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+        yum install -y kubeadm kubelet kubectl
