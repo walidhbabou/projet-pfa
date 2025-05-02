@@ -1,0 +1,38 @@
+
+version: "3.1"
+
+stories:
+- story: greet path
+  steps:
+  - intent: greet
+  - action: utter_greet
+
+- story: exams inquiry
+  steps:
+  - intent: ask_exams
+  - action: utter_ask_exams
+
+- story: programs inquiry
+  steps:
+  - intent: ask_programs
+  - action: utter_ask_programs
+
+- story: professors inquiry
+  steps:
+  - intent: ask_professors
+  - action: utter_ask_professors
+
+- story: procedures inquiry
+  steps:
+  - intent: ask_procedures
+  - action: utter_ask_procedures
+
+- story: orientation inquiry
+  steps:
+  - intent: ask_orientation
+  - action: utter_ask_orientation
+
+- story: general info inquiry
+  steps:
+  - intent: ask_general_info
+  - action: utter_general_info

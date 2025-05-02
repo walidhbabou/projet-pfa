@@ -1,0 +1,39 @@
+cat > .gitignore <<EOL
+# Backend
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+backend/*.log
+backend/rasa_bot/venv310/
+backend/rasa_bot/venv310/Lib/site-packages/clang/native/libclang.dll
+backend/rasa_bot/venv310/Lib/site-packages/tensorflow/python/_pywrap_tensorflow_internal.pyd
+
+# Ignorer les fichiers volumineux
+backend/rasa_bot/venv310/
+backend/rasa_bot/venv310/Lib/site-packages/clang/native/libclang.dll
+backend/rasa_bot/venv310/Lib/site-packages/tensorflow/python/_pywrap_tensorflow_internal.pyd
+
+# Frontend
+node_modules/
+.next/
+build/
+dist/
+
+# Général
+.DS_Store
+*.env
+*.log
+*.pyd
+*.dll
+backend/rasa_bot/.rasa/cache/
+backend/rasa_bot/models/
+backend/rasa_bot/venv310/
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.pkl
+*.db
+backend/rasa_bot/.rasa/cache/
+backend/rasa_bot/models/
+backend/rasa_bot/venv310/

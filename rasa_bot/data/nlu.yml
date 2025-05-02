@@ -1,0 +1,123 @@
+version: "3.1"
+
+nlu:
+- intent: greet
+  examples: |
+    - bonjour
+    - salut
+    - hello
+    - bonsoir
+    - hey
+    - salutations
+    - coucou
+
+- intent: goodbye
+  examples: |
+    - au revoir
+    - à bientôt
+    - à plus tard
+    - adieu
+    - bonne journée
+    - bye
+
+- intent: affirm
+  examples: |
+    - oui
+    - bien sûr
+    - bien entendu
+    - ok
+    - d'accord
+    - c'est correct
+    - exactement
+
+- intent: deny
+  examples: |
+    - non
+    - jamais
+    - je ne pense pas
+    - pas du tout
+    - pas vraiment
+    - pas d'accord
+
+- intent: thank
+  examples: |
+    - merci
+    - merci beaucoup
+    - je vous remercie
+    - remerciements
+    - c'est gentil
+    - je vous suis reconnaissant
+
+- intent: ask_exams
+  examples: |
+    - quand sont les examens
+    - date des examens
+    - planning des examens
+    - quand commencent les examens
+    - calendrier des examens
+    - où puis-je trouver les résultats des examens
+    - comment consulter mes notes
+    - quand seront publiés les résultats
+    - comment se déroulent les examens
+
+- intent: ask_programs
+  examples: |
+    - quelles filières proposez-vous
+    - information sur les LST
+    - information sur les MST
+    - quel est le contenu de la filière informatique
+    - comment entrer en génie civil
+    - quels sont les prérequis pour la filière chimie
+    - je veux des informations sur le programme de biologie
+    - quels cours sont enseignés en mathématiques
+    - qu'est-ce que la LST géologie
+
+- intent: ask_professors
+  examples: |
+    - qui est le responsable de la filière informatique
+    - comment contacter le professeur de mathématiques
+    - email du professeur de chimie
+    - heures de permanence des enseignants
+    - qui enseigne la physique quantique
+    - coordonnées du département d'informatique
+    - je cherche le bureau du Dr. Mohammed
+
+- intent: ask_procedures
+  examples: |
+    - comment s'inscrire
+    - procédure de réinscription
+    - documents nécessaires pour l'inscription
+    - comment déposer mon mémoire
+    - comment obtenir un certificat de scolarité
+    - où faire la demande de bourse
+    - formalités administratives pour un stage
+    - procédure de soutenance
+
+- intent: ask_orientation
+  examples: |
+    - quels sont les débouchés après la filière informatique
+    - métiers après une LST en biologie
+    - que faire après un master en géologie
+    - possibilités d'emploi avec un diplôme en mathématiques
+    - conseil d'orientation
+    - poursuite d'études après la FSTS
+    - quelles entreprises recrutent les diplômés
+
+- intent: ask_general_info
+  examples: |
+    - où se trouve la FSTS
+    - adresse de la faculté
+    - horaires d'ouverture
+    - contact de l'administration
+    - histoire de la FSTS
+    - combien d'étudiants à la FSTS
+    - qui est le doyen de la faculté
+
+- intent: out_of_scope
+  examples: |
+    - quel est le sens de la vie
+    - raconte-moi une blague
+    - quelle est la météo aujourd'hui
+    - qui a gagné le match de foot hier
+    - comment faire une pizza
+    - qui est le président actuel

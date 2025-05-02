@@ -1,0 +1,14 @@
+{
+  "0": "affirm",
+  "1": "ask_exams",
+  "2": "ask_general_info",
+  "3": "ask_orientation",
+  "4": "ask_procedures",
+  "5": "ask_professors",
+  "6": "ask_programs",
+  "7": "deny",
+  "8": "goodbye",
+  "9": "greet",
+  "10": "out_of_scope",
+  "11": "thank"
+}

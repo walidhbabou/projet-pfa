@@ -1,0 +1,6 @@
+rasa
+sqlalchemy<2.0.0
+setuptools>=65.5.0
+jax>=0.4.0
+jaxlib>=0.4.0
+sanic-cors>=2.0.0

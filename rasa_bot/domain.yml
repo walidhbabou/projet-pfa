@@ -1,0 +1,51 @@
+
+version: "3.1"
+
+intents:
+  - greet
+  - goodbye
+  - affirm
+  - deny
+  - thank
+  - ask_exams
+  - ask_programs
+  - ask_professors
+  - ask_procedures
+  - ask_orientation
+  - ask_general_info
+  - out_of_scope
+
+responses:
+  utter_greet:
+    - text: "Bonjour ! Je suis l'assistant virtuel de la FSTS. Comment puis-je vous aider aujourd'hui?"
+  
+  utter_goodbye:
+    - text: "Au revoir ! N'hésitez pas à me contacter si vous avez d'autres questions."
+  
+  utter_thank:
+    - text: "Je vous en prie ! Avez-vous d'autres questions sur la FSTS?"
+  
+  utter_ask_exams:
+    - text: "Les examens sont planifiés selon le calendrier académique. Veuillez consulter le site web officiel de la FSTS pour les dates précises. Pour plus de détails concernant votre filière spécifique, contactez votre département."
+  
+  utter_ask_programs:
+    - text: "La FSTS propose plusieurs filières en licence et master. Pour des informations détaillées sur chaque programme, veuillez consulter la section appropriée sur le site web ou contacter le service de scolarité."
+  
+  utter_ask_professors:
+    - text: "Vous pouvez trouver les coordonnées des enseignants sur le site web de la faculté ou auprès du secrétariat de votre département. La plupart des professeurs ont également des heures de permanence pendant lesquelles vous pouvez les rencontrer."
+  
+  utter_ask_procedures:
+    - text: "Pour les procédures administratives, comme l'inscription ou les demandes de documents, veuillez vous adresser au service de scolarité au rez-de-chaussée du bâtiment administratif. Certains services sont également disponibles en ligne."
+  
+  utter_ask_orientation:
+    - text: "Pour l'orientation et les conseils sur les débouchés professionnels, je vous recommande de contacter le service d'orientation ou de participer aux journées portes ouvertes et aux forums carrières organisés par la faculté."
+  
+  utter_general_info:
+    - text: "La Faculté des Sciences et Techniques de Settat est une institution publique fondée en 1993. Elle offre une formation scientifique et technique de qualité dans divers domaines."
+  
+  utter_out_of_scope:
+    - text: "Je suis désolé, mais je ne peux pas répondre à cette question. Je suis spécialisé dans les informations concernant la FSTS. Pourriez-vous me poser une question sur les examens, les filières, ou les démarches administratives?"
+
+session_config:
+  session_expiration_time: 60
+  carry_over_slots_to_new_session: true

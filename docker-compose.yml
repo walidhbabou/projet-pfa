@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fsts_assistance
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 30s
+      retries: 3
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/fsts_assistance
+      - FLASK_DEBUG=true
+      - JWT_SECRET_KEY=your_secure_jwt_secret
+      - RASA_API_URL=http://rasa:5005
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  rasa:
+    build: ./rasa_bot
+    ports:
+      - "5005:5005"
+    environment:
+      - RASA_MODEL_PATH=./models
+      - SANIC_HOST=0.0.0.0
+      - SANIC_PORT=5005
+    volumes:
+      - ./rasa:/app
+      - rasa_models:/app/models
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:
+  rasa_models:
