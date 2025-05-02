@@ -57,3 +57,7 @@ data/rules/training_data.json
 # OS
 .DS_Store
 Thumbs.db
+__pycache__/
+*.log
+*.pyc
+*.tmp
