@@ -1,0 +1,561 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from pymongo import MongoClient, ReturnDocument
+from werkzeug.security import generate_password_hash, check_password_hash
+from routes.admin_routes import admin_bp, init_admin_routes
+from routes.announcement_routes import announcement_bp, init_announcement_routes
+from bson import json_util
+import os
+from dotenv import load_dotenv
+import json
+import requests
+import datetime
+import traceback
+import uuid
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Configure CORS with proper settings
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:8080", "http://localhost:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    },
+     r"/api/chat/history/*": {   # <-- ajoute cette ligne
+        "origins": os.getenv('ALLOWED_ORIGINS', 'http://localhost:8080').split(','),
+        "methods": ["GET", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
+
+# Security configurations
+app.config.update(
+    JWT_SECRET_KEY=os.getenv("JWT_SECRET_KEY", "default-secret-key-change-me"),
+    JWT_ACCESS_TOKEN_EXPIRES=datetime.timedelta(
+        hours=int(os.getenv("JWT_EXPIRE_HOURS", 24))
+    ),
+    JWT_TOKEN_LOCATION=['headers'],
+    MONGO_URI=os.getenv("MONGO_URI", "mongodb://localhost:27017/fsts_chatbot")
+)
+
+# Initialize JWT
+jwt = JWTManager(app)
+
+# Database connection with error handling
+try:
+    client = MongoClient(
+        app.config['MONGO_URI'],
+        connectTimeoutMS=30000,
+        socketTimeoutMS=30000,
+        serverSelectionTimeoutMS=5000,
+        retryWrites=True,
+        w="majority"
+    )
+    
+    # Verify connection
+    client.admin.command('ping')
+    print("✅ Successfully connected to MongoDB!")
+    
+    db = client.get_database()
+    users_collection = db.users
+    chat_history_collection = db.chat_history
+    faq_collection = db.faq
+
+    # Create indexes
+    users_collection.create_index([("email", 1)], unique=True)
+    chat_history_collection.create_index([("user_id", 1)])
+    chat_history_collection.create_index([("timestamp", -1)])
+    faq_collection.create_index([("question", "text")])
+    
+except Exception as e:
+    print(f"❌ MongoDB connection error: {e}")
+    traceback.print_exc()
+    raise
+
+# Helper functions
+def json_response(data, status_code=200):
+    """Return JSON response with proper headers"""
+    return app.response_class(
+        response=json.dumps(data, default=json_util.default),
+        status=status_code,
+        mimetype='application/json'
+    )
+
+def is_admin(email):
+    """Check if user is admin"""
+    user = users_collection.find_one({"email": email})
+    return user and user.get("role") == "admin"
+
+# Initialize FAQ data
+def init_faq_database():
+    if faq_collection.count_documents({}) == 0:
+        try:
+            with open('faq_data.json', 'r', encoding='utf-8') as f:
+                faq_data = json.load(f)
+            if faq_data:
+                faq_collection.insert_many(faq_data)
+                print("✅ FAQ database initialized")
+        except Exception as e:
+            print(f"❌ FAQ initialization error: {e}")
+
+# Authentication routes
+@app.route('/api/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return json_response({"error": "Email and password required"}, 400)
+    
+        if users_collection.find_one({"email": data['email']}):
+            return json_response({"error": "Email already exists"}, 400)
+    
+        new_user = {
+            "email": data['email'],
+            "password": generate_password_hash(data['password']),
+            "name": data.get('name', ''),
+            "role": "user",
+            "created_at": datetime.datetime.utcnow(),
+            "updated_at": datetime.datetime.utcnow()
+        }
+    
+        result = users_collection.insert_one(new_user)
+    
+        access_token = create_access_token(identity=data['email'])
+    
+        return json_response({
+            "message": "User created successfully",
+            "token": access_token,
+            "user": {
+                "email": data['email'],
+                "name": new_user['name'],
+                "role": new_user['role']
+            }
+        }, 201)
+        
+    except Exception as e:
+        print(f"Registration error: {e}")
+        return json_response({"error": "Registration failed"}, 500)
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return json_response({"error": "Email and password required"}, 400)
+    
+        user = users_collection.find_one({"email": data['email']})
+        if not user or not check_password_hash(user['password'], data['password']):
+            return json_response({"error": "Invalid credentials"}, 401)
+    
+        access_token = create_access_token(identity=data['email'])
+    
+        return json_response({
+            "token": access_token,
+            "user": {
+                "email": user['email'],
+                "name": user.get('name', ''),
+                "role": user.get('role', 'user')
+            }
+        })
+        
+    except Exception as e:
+        print(f"Login error: {e}")
+        return json_response({"error": "Login failed"}, 500)
+
+# Admin management
+@app.route('/api/admin/users', methods=['POST'])
+@jwt_required()
+def create_admin_user():
+    try:
+        if not is_admin(get_jwt_identity()):
+            return json_response({"error": "Unauthorized"}, 403)
+            
+        data = request.get_json()
+        required_fields = ['email', 'password']
+        if not all(field in data for field in required_fields):
+            return json_response({"error": f"Missing fields: {required_fields}"}, 400)
+        
+        if users_collection.find_one({"email": data['email']}):
+            return json_response({"error": "Email already exists"}, 400)
+            
+        new_admin = {
+            "email": data['email'],
+            "password": generate_password_hash(data['password']),
+            "name": data.get('name', ''),
+            "role": "admin",
+            "created_by": get_jwt_identity(),
+            "created_at": datetime.datetime.utcnow(),
+            "updated_at": datetime.datetime.utcnow()
+        }
+        
+        users_collection.insert_one(new_admin)
+        
+        return json_response({
+            "message": "Admin user created successfully",
+            "user": {
+                "email": new_admin['email'],
+                "name": new_admin['name'],
+                "role": new_admin['role']
+            }
+        }, 201)
+        
+    except Exception as e:
+        print(f"Admin creation error: {e}")
+        return json_response({"error": "Admin creation failed"}, 500)
+
+@app.route('/api/create-admin', methods=['POST'])
+def create_admin():
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return json_response({"error": "Email and password required"}, 400)
+        
+        if users_collection.find_one({"email": data['email']}):
+            return json_response({"error": "Email already exists"}, 400)
+        
+        new_admin = {
+            "email": data['email'],
+            "password": generate_password_hash(data['password']),
+            "name": data.get('name', ''),
+            "role": "admin",
+            "created_at": datetime.datetime.utcnow(),
+            "updated_at": datetime.datetime.utcnow()
+        }
+        
+        users_collection.insert_one(new_admin)
+        
+        access_token = create_access_token(identity=data['email'])
+        
+        return json_response({
+            "message": "Admin user created successfully",
+            "token": access_token,
+            "user": {
+                "email": new_admin['email'],
+                "name": new_admin['name'],
+                "role": new_admin['role']
+            }
+        }, 201)
+    
+    except Exception as e:
+        print(f"Admin creation error: {e}")
+        return json_response({"error": "Admin creation failed"}, 500)
+@app.route('/api/admin/stats', methods=['GET'])
+@jwt_required()
+def get_admin_stats():
+    try:
+        email = get_jwt_identity()
+        if not is_admin(email):
+            return json_response({"error": "Unauthorized"}, 403)
+
+        now = datetime.datetime.utcnow()
+        last_month = now - datetime.timedelta(days=30)
+
+        total_conversations = chat_history_collection.count_documents({})
+        active_users = users_collection.count_documents({
+            "updated_at": {"$gte": last_month}
+        })
+
+        return json_response({
+            "conversations": total_conversations,
+            "activeUsers": active_users,
+            "resolutionRate": 87,
+            "responseTime": 1.4
+        })
+
+    except Exception as e:
+        print(f"Stats error: {e}")
+        return json_response({"error": "Stats fetch failed"}, 500)
+@app.route('/api/me', methods=['GET'])
+@jwt_required()
+def get_current_user():
+    try:
+        email = get_jwt_identity()
+        user = users_collection.find_one({"email": email}, {"_id": 0, "password": 0})
+        if not user:
+            return json_response({"error": "User not found"}, 404)
+        return json_response(user)
+    except Exception as e:
+        print(f"Me error: {e}")
+        return json_response({"error": "Failed to fetch user"}, 500)
+
+# FAQ Management
+@app.route('/api/faq', methods=['GET'])
+def get_faqs():
+    try:
+        faqs = list(faq_collection.find({}, {"_id": 0}))
+        return json_response({"faqs": faqs})
+    except Exception as e:
+        print(f"FAQ fetch error: {e}")
+        return json_response({"error": "Failed to fetch FAQs"}, 500)
+
+@app.route('/api/admin/faq', methods=['POST'])
+@jwt_required()
+def add_faq():
+    try:
+        if not is_admin(get_jwt_identity()):
+            return json_response({"error": "Unauthorized"}, 403)
+    
+        data = request.get_json()
+        required_fields = ['question', 'answer']
+        if not all(field in data for field in required_fields):
+            return json_response({"error": f"Missing fields: {required_fields}"}, 400)
+    
+        new_faq = {
+            "id": f"faq-{faq_collection.count_documents({}) + 1}",
+            "question": data['question'],
+            "answer": data['answer'],
+            "category": data.get('category', 'general'),
+            "created_by": get_jwt_identity(),
+            "created_at": datetime.datetime.utcnow(),
+            "updated_at": datetime.datetime.utcnow()
+        }
+    
+        faq_collection.insert_one(new_faq)
+        
+        return json_response({
+            "message": "FAQ added successfully",
+            "faq": new_faq
+        }, 201)
+        
+    except Exception as e:
+        print(f"FAQ creation error: {e}")
+        return json_response({"error": "FAQ creation failed"}, 500)
+
+# Chat endpoint
+@app.route('/api/chat', methods=['POST'])
+@jwt_required()
+def chat():
+    try:
+        data = request.get_json()
+        if 'message' not in data:
+            return json_response({"error": "Message is required"}, 400)
+
+        user_email = get_jwt_identity()
+        user_message = data['message']
+        session_id = data.get('session_id')  # <-- récupère le session_id du frontend
+
+        # Check FAQ
+        faq_response = None
+        for faq in faq_collection.find({"$text": {"$search": user_message}}):
+            faq_response = faq['answer']
+            break
+
+        response_text = faq_response or get_rasa_response(user_message)
+        save_to_chat_history(user_email, user_message, response_text, session_id)
+
+        return json_response({"response": response_text})
+
+    except Exception as e:
+        print(f"Chat error: {e}")
+        return json_response({"error": "Chat service unavailable"}, 503)
+
+    try:
+        data = request.get_json()
+        if 'message' not in data:
+            return json_response({"error": "Message is required"}, 400)
+            
+        user_email = get_jwt_identity()
+        user_message = data['message']
+        
+        # Check FAQ first
+        faq_response = None
+        for faq in faq_collection.find({"$text": {"$search": user_message}}):
+            faq_response = faq['answer']
+            break
+            
+        if faq_response:
+            save_to_chat_history(user_email, user_message, faq_response)
+            return json_response({"response": faq_response})
+            
+        # Fallback to Rasa
+        rasa_response = get_rasa_response(user_message)
+        save_to_chat_history(user_email, user_message, rasa_response)
+        
+        return json_response({"response": rasa_response})
+        
+    except Exception as e:
+        print(f"Chat error: {e}")
+        return json_response({"error": "Chat service unavailable"}, 503)
+
+def get_rasa_response(message):
+    try:
+        rasa_url = os.getenv("RASA_API_URL", "http://localhost:5005/webhooks/rest/webhook")
+        response = requests.post(
+            rasa_url,
+            json={"sender": "user", "message": message},
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            responses = response.json()
+            if responses and isinstance(responses, list):
+                return responses[0].get('text', 'No text response from Rasa')
+                
+        return "I couldn't understand your question. Please try again."
+        
+    except requests.exceptions.RequestException as e:
+        print(f"RASA connection error: {e}")
+        return "The chatbot service is currently unavailable."
+    except Exception as e:
+        print(f"RASA processing error: {e}")
+        return "An error occurred while processing your message."
+
+def save_to_chat_history(user_id, message, response, session_id=None):
+    try:
+        chat_history_collection.insert_one({
+            "user_id": user_id,
+            "message": message,
+            "response": response,
+            "session_id": session_id or str(uuid.uuid4()),  # 👈 important
+            "timestamp": datetime.datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"Chat history save error: {e}")
+
+@app.route('/api/chat/history', methods=['GET'])
+@jwt_required()
+def get_user_chat_history():
+    try:
+        user_email = get_jwt_identity()
+
+        history = list(chat_history_collection.find(
+            {"user_id": user_email},
+            {"_id": 0}
+        ).sort("timestamp", -1))
+
+        return json_response({"history": history})
+    
+    except Exception as e:
+        print(f"Chat history error: {e}")
+        return json_response({"error": "Failed to retrieve chat history"}, 500)
+    
+def save_to_chat_history(user_id, message, response, session_id=None):
+    try:
+        chat_history_collection.insert_one({
+            "user_id": user_id,
+            "message": message,
+            "response": response,
+            "session_id": session_id or str(uuid.uuid4()),
+            "timestamp": datetime.datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"Chat history save error: {e}")
+   
+@app.route('/api/chat/sessions', methods=['GET'])
+@jwt_required()
+def get_user_sessions():
+    try:
+        user_email = get_jwt_identity()
+
+        pipeline = [
+            {"$match": {"user_id": user_email}},
+            {"$sort": {"timestamp": -1}},
+            {"$group": {
+                "_id": "$session_id",
+                "last_used": {"$first": "$timestamp"}
+            }},
+            {"$sort": {"last_used": -1}}
+        ]
+
+        results = list(chat_history_collection.aggregate(pipeline))
+        sessions = [
+            {"id": s["_id"], "last_used": s["last_used"]}
+            for s in results if s["_id"]
+        ]
+
+        return json_response({"sessions": sessions})
+    except Exception as e:
+        print(f"Session fetch error: {e}")
+        return json_response({"error": "Failed to retrieve sessions"}, 500)
+
+    
+@app.route('/api/chat/history/<session_id>', methods=['GET'])
+@jwt_required()
+def session_history(session_id):
+    try:
+        user_email = get_jwt_identity()
+        history = list(chat_history.find({"user_id": user_email, "session_id": session_id}, {"_id": 0}).sort("timestamp", 1))
+        return json_response({"history": history})
+    except Exception as e:
+        print("History error:", e)
+        return json_response({"error": "Failed to retrieve history"}, 500)
+    try:
+        user_email = get_jwt_identity()
+
+        history = list(chat_history_collection.find(
+            {"user_id": user_email, "session_id": session_id},
+            {"_id": 0}
+        ).sort("timestamp", 1))
+
+        return json_response({"history": history})
+    except Exception as e:
+        print(f"Session history fetch error: {e}")
+        return json_response({"error": "Failed to retrieve session history"}, 500)
+
+def save_to_chat_history(user_id, message, response, session_id=None):
+    try:
+        chat_history_collection.insert_one({
+            "user_id": user_id,
+            "message": message,
+            "response": response,
+            "session_id": session_id or str(uuid.uuid4()),
+            "timestamp": datetime.datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"Chat history save error: {e}")
+
+# Initialize routes
+init_admin_routes({
+    'users': db.users,
+    'messages': db.chat
+})
+init_announcement_routes(db)
+
+# Register blueprints
+app.register_blueprint(admin_bp)
+app.register_blueprint(announcement_bp)
+
+# Health check endpoint
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    try:
+        # Check database connection
+        client.admin.command('ping')
+        
+        return json_response({
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return json_response({
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }, 503)
+
+# Error handlers
+@app.errorhandler(404)
+def not_found(error):
+    return json_response({"error": "Endpoint not found"}, 404)
+
+@app.errorhandler(500)
+def server_error(error):
+    return json_response({"error": "Internal server error"}, 500)
+
+# Initialize and run
+if __name__ == '__main__':
+    init_faq_database()
+    app.run(
+        host=os.getenv('FLASK_HOST', '0.0.0.0'),
+        port=int(os.getenv('FLASK_PORT', 5000)),
+        debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    )
