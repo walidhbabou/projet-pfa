@@ -11,7 +11,7 @@ def init_db():
     try:
         # Connect to MongoDB
         client = MongoClient(Config.MONGO_URI)
-        db = client.get_default_database()
+        db = client[Config.MONGO_DB_NAME]
         
         # Ensure collections exist and create them if they don't
         if 'faqs' not in db.list_collection_names():

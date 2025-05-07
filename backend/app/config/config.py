@@ -16,15 +16,15 @@ class Config:
     
     # MongoDB configuration
     # Dans votre configuration Flask
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017/fsts_assistance")  # Docker
-    MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "fsts_assistance")
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/fsts_assistance")
+    MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "fsts_chatbot")
     
     # CORS configuration
     CORS_ORIGINS = [
-        'http://localhost:8080',  # Frontend Vue.js/React en développement
+        'http://localhost:8081',  # Frontend Vue.js/React en développement
         'http://localhost:3000',  # Frontend alternatif
         'http://localhost:5173',  # Vite dev server
-        'http://127.0.0.1:8080',
+        'http://127.0.0.1:8081',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173'
     ]
