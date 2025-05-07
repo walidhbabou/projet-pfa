@@ -1,223 +1,321 @@
-- name: Install Docker Engine and k3s on master and worker nodes
-  hosts: all
+---
+- name: Configuration du serveur EC2 pour Jenkins
+  hosts: servers
   become: yes
+
+  vars:
+    jenkins_version: "2.426"  # Version spécifique de Jenkins pour stabilité
+    docker_ce_version: "24.0"  # Version spécifique de Docker CE
+
+  handlers:
+    - name: Restart Docker
+      service:
+        name: docker
+        state: restarted
+
   tasks:
-    # Nettoyage des installations existantes
-    - name: Force remove broken docker-ce
-      shell: |
-        dpkg --remove --force-all docker-ce || true
-        apt-get purge -y docker-ce docker-ce-cli containerd.io || true
-        rm -rf /var/lib/docker || true
-        rm -rf /etc/docker || true
-        rm -rf /var/lib/containerd || true
-      when: "'Ubuntu' in ansible_distribution"
-      ignore_errors: yes
-
-    - name: Remove old Docker installations
-      apt:
+    - name: Installer les dépendances système
+      yum:
         name:
-          - docker
-          - docker-engine
-          - docker.io
-          - containerd
-          - runc
-        state: absent
-      when: "'Ubuntu' in ansible_distribution"
-      ignore_errors: yes
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+        state: present
 
-    # Nettoyage des configurations existantes
-    - name: Remove old Docker list files (Ubuntu)
-      file:
-        path: "{{ item }}"
-        state: absent
-      with_items:
-        - /etc/apt/sources.list.d/docker.list
-        - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
-        - /etc/apt/sources.list.d/kubernetes.list
-      when: "'Ubuntu' in ansible_distribution"
+    # Vérification de la version de CentOS
+    - name: Debug distribution version
+      debug:
+        var: ansible_distribution_major_version
 
-    - name: Remove old Docker GPG keys (Ubuntu)
-      file:
-        path: "{{ item }}"
-        state: absent
-      with_items:
-        - /etc/apt/keyrings/docker.asc
-        - /etc/apt/keyrings/docker.gpg
-        - /usr/share/keyrings/docker-archive-keyring.gpg
-        - /usr/share/keyrings/kubernetes-archive-keyring.gpg
-      when: "'Ubuntu' in ansible_distribution"
+    - name: Ajouter le repository Docker
+      yum_repository:
+        name: docker-ce
+        description: Docker CE Stable
+        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: yes
 
-    # Préparation du système
-    - name: Update apt cache (Ubuntu)
+    - name: Installer Docker
+      yum:
+        name:
+          - docker-ce-{{ docker_ce_version }}
+          - docker-ce-cli-{{ docker_ce_version }}
+          - containerd.io
+        state: present
+      notify: Restart Docker
+
+    - name: Activer et démarrer Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Installer Java (nécessaire pour Jenkins)
+      yum:
+        name: java-17-amazon-corretto-devel
+        state: present
+
+    - name: Ajouter l'utilisateur courant au groupe docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Ajouter le repo Jenkins
+      rpm_key:
+        key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+        state: present
+
+    - name: Configurer le repository Jenkins
+      yum_repository:
+        name: jenkins
+        description: Jenkins repo
+        baseurl: https://pkg.jenkins.io/redhat-stable
+        gpgcheck: yes
+        gpgkey: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+
+    - name: Installer Jenkins
+      yum:
+        name: "jenkins-{{ jenkins_version }}"
+        state: present
+        disable_gpg_check: no
+
+    - name: Démarrer Jenkins
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Afficher le mot de passe admin initial
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_password
+      changed_when: false
+
+    - name: Afficher le mot de passe Jenkins
+      debug:
+        msg: "Mot de passe admin Jenkins initial: {{ jenkins_password.stdout }}"
+
+- name: Configuration du nœud master Kubernetes
+  hosts: master
+  become: yes
+
+  vars:
+    k8s_version: "1.29.2"  # Version spécifique pour éviter les problèmes
+    pod_network_cidr: "10.244.0.0/16"
+
+  handlers:
+    - name: Restart Docker
+      service:
+        name: docker
+        state: restarted
+    - name: Restart kubelet
+      service:
+        name: kubelet
+        state: restarted
+
+  tasks:
+    - name: Mettre à jour le cache apt
       apt:
         update_cache: yes
         cache_valid_time: 3600
-      when: "'Ubuntu' in ansible_distribution"
-      ignore_errors: yes
 
-    - name: Fix broken dependencies (Ubuntu)
-      shell: |
-        apt-get install -f -y
-        dpkg --configure -a
-      when: "'Ubuntu' in ansible_distribution"
-      ignore_errors: yes
-
-    - name: Install dependencies (Ubuntu)
+    - name: Installer les dépendances
       apt:
         name:
           - apt-transport-https
           - ca-certificates
           - curl
           - gnupg
-          - software-properties-common
           - lsb-release
+          - software-properties-common
         state: present
-      when: "'Ubuntu' in ansible_distribution"
 
-    - name: Create GPG directory (Ubuntu)
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-      when: "'Ubuntu' in ansible_distribution"
+    - name: Ajouter la clé GPG Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
 
-    # Configuration des dépôts Docker
-    - name: Add Docker GPG key (Ubuntu)
-      shell: |
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-        chmod a+r /etc/apt/keyrings/docker.gpg
-      args:
-        creates: /etc/apt/keyrings/docker.gpg
-      when: "'Ubuntu' in ansible_distribution"
-
-    - name: Add Docker repository (Ubuntu)
+    - name: Ajouter le repository Docker
       apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
         state: present
-        filename: docker
-      when: "'Ubuntu' in ansible_distribution"
+        filename: docker-ce
 
-    # Installation de Docker
-    - name: Install Docker Engine (Ubuntu)
+    - name: Installer Docker
       apt:
         name:
-          - containerd.io
           - docker-ce
           - docker-ce-cli
-        state: latest
-        update_cache: yes
-        allow_downgrade: yes
-        force_apt_get: yes
-      when: "'Ubuntu' in ansible_distribution"
-      register: docker_install
-
-    - name: Fix broken dependencies if needed
-      shell: |
-        apt-get install -f -y
-        dpkg --configure -a
-      when: "'Ubuntu' in ansible_distribution and docker_install is failed"
-      ignore_errors: yes
-
-    - name: Retry Docker installation after fixing dependencies
-      apt:
-        name:
           - containerd.io
-          - docker-ce
-          - docker-ce-cli
-        state: latest
-        update_cache: yes
-        allow_downgrade: yes
-        force_apt_get: yes
-      when: "'Ubuntu' in ansible_distribution and docker_install is failed"
-
-    # Configuration de Kubernetes
-    - name: Add Kubernetes GPG key
-      shell: |
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /usr/share/keyrings/k8s-archive-keyring.gpg
-        chmod a+r /usr/share/keyrings/k8s-archive-keyring.gpg
-      args:
-        creates: /usr/share/keyrings/k8s-archive-keyring.gpg
-      when: "'Ubuntu' in ansible_distribution"
-
-    - name: Add Kubernetes repository
-      apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/k8s-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
         state: present
-        filename: kubernetes
-        update_cache: yes
-      when: "'Ubuntu' in ansible_distribution"
+      notify: Restart Docker
 
-    # Vérification et démarrage de Docker
-    - name: Ensure Docker is running and enabled on boot
+    - name: Configurer Docker pour systemd
+      copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {
+            "exec-opts": ["native.cgroupdriver=systemd"],
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "100m"
+            },
+            "storage-driver": "overlay2"
+          }
+
+    - name: Activer et démarrer Docker
       service:
         name: docker
         state: started
         enabled: yes
-      register: docker_service
 
-    - name: Check Docker service status
-      shell: systemctl status docker
-      register: docker_status
+    - name: Désactiver swap
+      shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
       ignore_errors: yes
 
-    - name: Display Docker service status
+    - name: Ajouter la clé GPG Kubernetes
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0:2] | join('.') }}/deb/Release.key
+        state: present
+
+    - name: Ajouter le repository Kubernetes
+      apt_repository:
+        repo: "deb [arch=amd64] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0:2] | join('.') }}/deb/ /"
+        state: present
+        filename: kubernetes
+
+    - name: Installer les packages Kubernetes
+      apt:
+        name:
+          - kubelet={{ k8s_version }}-*
+          - kubeadm={{ k8s_version }}-*
+          - kubectl={{ k8s_version }}-*
+        state: present
+        allow_downgrades: yes
+
+    - name: Initialiser le cluster Kubernetes
+      command: kubeadm init --pod-network-cidr={{ pod_network_cidr }} --ignore-preflight-errors=all
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Configurer kubectl pour l'utilisateur root
+      become: false
+      command: mkdir -p /root/.kube && cp /etc/kubernetes/admin.conf /root/.kube/config
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Installer le réseau Pod (Flannel)
+      command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Générer la commande join pour les workers
+      command: kubeadm token create --print-join-command
+      register: join_command
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Afficher la commande join
       debug:
-        var: docker_status.stdout_lines
-      when: docker_status.rc != 0
+        msg: "Commande pour joindre les workers: {{ join_command.stdout }}"
+      when: inventory_hostname == groups['master'][0]
 
-    - name: Add ubuntu user to docker group
-      user:
-        name: ubuntu
-        groups: docker
-        append: yes
+- name: Configuration des nœuds worker Kubernetes
+  hosts: worker
+  become: yes
 
-    # Installation de k3s (inchangé)
-    - name: Uninstall any existing k3s installation
+  vars:
+    k8s_version: "1.29.2"
+
+  handlers:
+    - name: Restart Docker
+      service:
+        name: docker
+        state: restarted
+    - name: Restart kubelet
+      service:
+        name: kubelet
+        state: restarted
+
+  tasks:
+    - name: Mettre à jour le cache apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Installer les dépendances
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Ajouter la clé GPG Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Ajouter le repository Docker
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker-ce
+
+    - name: Installer Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      notify: Restart Docker
+
+    - name: Configurer Docker pour systemd
+      copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {
+            "exec-opts": ["native.cgroupdriver=systemd"],
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "100m"
+            },
+            "storage-driver": "overlay2"
+          }
+
+    - name: Activer et démarrer Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Désactiver swap
       shell: |
-        /usr/local/bin/k3s-uninstall.sh || true
-        /usr/local/bin/k3s-agent-uninstall.sh || true
-      ignore_errors: true
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+      ignore_errors: yes
 
-    - name: Install k3s on master node with increased timeout
-      shell: |
-        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode 644" sh -
-      when: inventory_hostname in groups['master']
-      async: 300
-      poll: 10
+    - name: Ajouter la clé GPG Kubernetes
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0:2] | join('.') }}/deb/Release.key
+        state: present
 
-    - name: Wait for k3s server to be ready (increased timeout)
-      wait_for:
-        port: 6443
-        host: "{{ ansible_default_ipv4.address }}"
-        delay: 15
-        timeout: 300
-      when: inventory_hostname in groups['master']
+    - name: Ajouter le repository Kubernetes
+      apt_repository:
+        repo: "deb [arch=amd64] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0:2] | join('.') }}/deb/ /"
+        state: present
+        filename: kubernetes
 
-    - name: Wait for k3s token file (with increased timeout)
-      wait_for:
-        path: /var/lib/rancher/k3s/server/node-token
-        timeout: 300
-      delegate_to: "{{ groups['master'][0] }}"
-      run_once: true
+    - name: Installer les packages Kubernetes
+      apt:
+        name:
+          - kubelet={{ k8s_version }}-*
+          - kubeadm={{ k8s_version }}-*
+        state: present
+        allow_downgrades: yes
 
-    - name: Get k3s join token from master node
-      shell: "cat /var/lib/rancher/k3s/server/node-token"
-      register: k3s_token
-      delegate_to: "{{ groups['master'][0] }}"
-      run_once: true
-      changed_when: false
-
-    - name: Install k3s on worker nodes
-      shell: |
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]].ansible_default_ipv4.address }}:6443 K3S_TOKEN={{ k3s_token.stdout }} sh -
+    - name: Joindre le cluster Kubernetes
+      command: "{{ hostvars[groups['master'][0]]['join_command']['stdout'] }}"
       when: inventory_hostname in groups['worker']
-      async: 300
-      poll: 10
-
-    - name: Configure kubectl for ubuntu user (only on master)
-      shell: |
-        mkdir -p /home/ubuntu/.kube
-        cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
-        chown ubuntu:ubuntu /home/ubuntu/.kube/config
-        sed -i 's/127.0.0.1/{{ ansible_default_ipv4.address }}/g' /home/ubuntu/.kube/config
-      when: inventory_hostname in groups['master']
