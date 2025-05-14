@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig, InternalAxiosRequestConfig, AxiosError } from 'axios';
 
-// Récupérer l'URL de l'API depuis les variables d'environnement Vite ou utiliser une URL par défaut
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Récupérer l'URL de l'API depuis les variables d'environnement Vite ou utiliser l'URL de production
+const API_URL = import.meta.env.VITE_API_URL || 'http://107.21.73.241:30080/api';
 const IS_DEV = import.meta.env.DEV;
 
 console.log('Mode de développement:', IS_DEV ? 'Oui' : 'Non');

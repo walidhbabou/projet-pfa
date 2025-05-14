@@ -33,7 +33,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "8080:8080"
+      - "8081:8081"
     environment:
       - VITE_API_URL=http://localhost:5000/api
     volumes:
@@ -47,12 +47,13 @@ services:
     ports:
       - "5005:5005"
     environment:
-      - RASA_MODEL_PATH=./models
+      - RASA_MODEL_PATH=/app/models
       - SANIC_HOST=0.0.0.0
       - SANIC_PORT=5005
     volumes:
-      - ./rasa:/app
-      - rasa_models:/app/models
+      - ./rasa_bot:/app
+      - ./rasa_bot/models:/app/models
+    command: run --enable-api --cors "*" --model /app/models/20250426-033857-visible-atmosphere.tar.gz
     depends_on:
       - mongo
 

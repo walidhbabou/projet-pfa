@@ -17,14 +17,24 @@ def create_app():
     
     # Configuration CORS
     CORS(app, resources={
-        r"/api/*": {
-            "origins": ["http://localhost:8081", "http://localhost:5173"],
+        r"/*": {
+            "origins": "*",
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
             "supports_credentials": True,
-            "expose_headers": ["Content-Type", "Authorization"]
+            "expose_headers": ["Content-Type", "Authorization"],
+            "max_age": 3600
         }
     })
+
+    # Add CORS headers to all responses
+    @app.after_request
+    def after_request(response):
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
     
     # Initialize JWT
     jwt = JWTManager(app)

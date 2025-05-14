@@ -10,15 +10,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Pin specific versions to avoid deprecation warnings
 COPY requirements.txt .
+RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy Rasa files
 COPY . .
 
+# Create models directory
+RUN mkdir -p /app/models
+
 # Environment variables to suppress warnings
 ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
-    PYTHONWARNINGS="ignore::DeprecationWarning"
+    PYTHONWARNINGS="ignore::DeprecationWarning" \
+    RASA_MODEL_PATH=/app/models
 
 EXPOSE 5005
 
-CMD ["rasa", "run", "--enable-api", "--cors", "*"]
+# Default command (can be overridden by Kubernetes)
+CMD ["rasa", "run", "--enable-api", "--cors", "*", "--model", "/app/models/20250426-033857-visible-atmosphere.tar.gz"]

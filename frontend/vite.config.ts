@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
       port: 8080,       // Doit matcher avec CORS_ORIGINS
       proxy: {          // Ajouter un proxy pour les API
         '/api': {
-          target: 'http://backend:5000',  // Utilisez le nom du service docker
+          target: 'http://107.21.73.241:30080',  // Utilisez le nom du service docker
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '')
         }

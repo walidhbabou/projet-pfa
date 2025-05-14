@@ -20,20 +20,19 @@ class Config:
     MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "fsts_chatbot")
     
     # CORS configuration
-    CORS_ORIGINS = [
-        'http://localhost:8081',  # Frontend Vue.js/React en développement
-        'http://localhost:3000',  # Frontend alternatif
-        'http://localhost:5173',  # Vite dev server
-        'http://127.0.0.1:8081',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5173'
-    ]
+    CORS_ORIGINS = "*"  # Allow all origins
+    
+    # CORS additional settings
+    CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
     
     # Debug mode
     DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     
     # Rasa configuration
-    RASA_API_URL = os.getenv("RASA_API_URL", "http://localhost:5005")
+    #RASA_API_URL = os.getenv("RASA_API_URL", "http://localhost:5005")
+    RASA_API_URL = os.getenv("RASA_API_URL", "http://107.21.73.241:32441")
     
     @classmethod
     def init_app(cls, app):
