@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   return (
@@ -32,15 +33,14 @@ const Index = () => {
           </p>
 
       
-          <a href="http://localhost:8081/auth">
-          <Button
-  className="text-lg px-6 py-3 relative overflow-hidden group transition-all duration-300 hover:scale-105"
->
-  <span className="relative z-10">Se connecter</span>
-  <span className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/30 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-sm" />
-</Button>
-
-          </a>
+          <Link to="/auth">
+            <Button
+              className="text-lg px-6 py-3 relative overflow-hidden group transition-all duration-300 hover:scale-105"
+            >
+              <span className="relative z-10">Se connecter</span>
+              <span className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/30 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-sm" />
+            </Button>
+          </Link>
         </div>
       </div>
 
