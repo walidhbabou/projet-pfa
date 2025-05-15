@@ -29,7 +29,7 @@ const Index = () => {
 
    
           <p className="text-lg text-muted-foreground">
-            Connectez-vous pour poser vos questions sur les filières, les inscriptions, les examens et les services offerts par la Faculté des Sciences et Techniques de Settat.
+            Connectez-vous pour poser vos questions sur les filières, les inscriptions, les examens et les services offerts par la Faculté des Sciences et Techniques de Settat pour ammeliorer communication.
           </p>
 
       
