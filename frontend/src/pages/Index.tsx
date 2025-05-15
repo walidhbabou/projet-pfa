@@ -24,7 +24,7 @@ const Index = () => {
 
 
           <h1 className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Bienvenue à l’assistant virtuel de la FSTS pour bien parcourire votre année universitaire
+            Bienvenue à l’assistant virtuel de la FSTS pour bien parcourire votre année universitaire 2024 -2025
           </h1>
 
    
