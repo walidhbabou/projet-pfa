@@ -29,8 +29,10 @@ ENV FLASK_APP=run.py \
     JWT_SECRET_KEY=votre_cle_secrete \
     RASA_API_URL=http://107.21.73.241:32441/webhooks/rest/webhook
 
+ENV PYTHONPATH=/app
+
 # 7. Exposer le port
 EXPOSE 5000
 
 # 8. Commande de production avec Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000",   "--workers", "4", "--timeout", "120", "run:app"]

@@ -24,12 +24,12 @@ const Index = () => {
 
 
           <h1 className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Bienvenue à l’assistant virtuel de la FSTS pour bien parcourire votre année universitaire 2024 -2025
+            Bienvenue à l’assistant virtuel de la FSTS 
           </h1>
 
    
           <p className="text-lg text-muted-foreground">
-            Connectez-vous pour poser vos questions sur les filières, les inscriptions, les examens et les services offerts par la Faculté des Sciences et Techniques de Settat pour ammeliorer communication.
+            Connectez-vous pour poser vos questions sur les filières, les inscriptions, les examens et les services offerts par la Faculté des Sciences et Techniques de Settat ;
           </p>
 
       
