@@ -2,3 +2,4 @@
 *.psd filter=lfs diff=lfs merge=lfs -text
 *.mp4 filter=lfs diff=lfs merge=lfs -text
 backend/large_files/* filter=lfs diff=lfs merge=lfs -text
+rasa_bot/models/20250425-214450-largo-east.tar.gz filter=lfs diff=lfs merge=lfs -text
