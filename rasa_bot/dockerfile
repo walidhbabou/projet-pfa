@@ -16,8 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy Rasa files
 COPY . .
 
-# Create models directory
+# Create models directory and copy files
 RUN mkdir -p /app/models
+COPY models /app/models
 
 # Environment variables to suppress warnings
 ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \

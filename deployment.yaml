@@ -199,7 +199,7 @@ spec:
       initContainers:
       - name: init-rasa
         image: walidhbabou/chatbootfsts-rasa:latest
-        command: ['sh', '-c', 'cp -r /app/models/* /rasa-models/ && ls -la /rasa-models/']
+        command: ['sh', '-c', 'echo "Starting init container..." && mkdir -p /rasa-models && echo "Checking /models directory..." && ls -la /models && echo "Copying models..." && cp -r /models/* /rasa-models/ 2>/dev/null || echo "No models found in /models" && echo "Contents of /rasa-models:" && ls -la /rasa-models/']
         volumeMounts:
         - name: rasa-models
           mountPath: /rasa-models
