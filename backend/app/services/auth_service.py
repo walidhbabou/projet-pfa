@@ -1,5 +1,5 @@
 from flask_jwt_extended import create_access_token
-from ..models.user import User
+from app.models.user import User
 from werkzeug.security import generate_password_hash
 from datetime import datetime
 

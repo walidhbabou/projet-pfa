@@ -16,9 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy Rasa files
 COPY . .
 
-# Create models directory and copy files
+# Create models directory and copy model files
 RUN mkdir -p /app/models
-COPY models /models
+COPY models/*.tar.gz /app/models/
 
 # Environment variables to suppress warnings
 ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
@@ -28,4 +28,4 @@ ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
 EXPOSE 5005
 
 # Default command (can be overridden by Kubernetes)
-CMD ["rasa", "run", "-m", "models/20250425-214450-largo-east.tar.gz", "--enable-api", "--cors", "*", "--debug"]
+CMD ["rasa", "run", "-m", "/app/models/20250426-033857-visible-atmosphere.tar.gz", "--enable-api", "--cors", "*", "--debug"]
