@@ -18,7 +18,7 @@ COPY . .
 
 # Create models directory and copy files
 RUN mkdir -p /app/models
-COPY models /app/models
+COPY models /models
 
 # Environment variables to suppress warnings
 ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
@@ -28,4 +28,4 @@ ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
 EXPOSE 5005
 
 # Default command (can be overridden by Kubernetes)
-CMD ["rasa", "run", "--enable-api", "--cors", "*", "--model", "/app/models/20250426-033857-visible-atmosphere.tar.gz"]
+CMD ["rasa", "run", "-m", "models/20250425-214450-largo-east.tar.gz", "--enable-api", "--cors", "*", "--debug"]

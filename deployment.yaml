@@ -217,7 +217,7 @@ spec:
         - name: SANIC_PORT
           value: "5005"
         command: ["sh"]
-        args: ["-c", "ls -la /rasa-models && rasa run --enable-api --cors '*' --model /rasa-models/$(ls /rasa-models | grep .tar.gz)"]
+        args: ["-c", "ls -la /rasa-models && rasa run --enable-api --cors '*' --debug --model $(find /rasa-models -name '*.tar.gz' | head -n 1)"]
         volumeMounts:
         - name: rasa-models
           mountPath: /rasa-models
