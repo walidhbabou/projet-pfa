@@ -13,12 +13,8 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Rasa files
+# Copy Rasa files and models
 COPY . .
-
-# Create models directory and copy model files
-RUN mkdir -p /app/models
-COPY models/*.tar.gz /app/models/
 
 # Environment variables to suppress warnings
 ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
