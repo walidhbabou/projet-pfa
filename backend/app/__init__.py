@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from app.config.config import Config
 from app.database.mongodb import init_db
-from app.models import *  # Import all models
+from app.models.user import User # Import the User model explicitly
 from .routes.auth_routes import auth_bp, init_auth_routes
 from .routes.chat_routes import chat_bp, init_chat_routes
 from .routes.faq_routes import faq_bp, init_faq_routes
