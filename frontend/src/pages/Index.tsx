@@ -24,7 +24,7 @@ const Index = () => {
 
 
           <h1 className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Bienvenue à l’assistant virtuel de la FSTS  pour les étudiants de fsts pour parcourire les etudes
+            Bienvenue à l’assistant virtuel de la FSTS  pour les étudiants de fsts pour mailleur commmmmmm
           </h1>
 
    
