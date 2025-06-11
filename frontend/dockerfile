@@ -5,8 +5,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with optimizations
-RUN npm ci --only=production --silent --no-audit --maxsockets 1
+# Install ALL dependencies (including devDependencies for build)
+RUN npm ci --silent --no-audit --maxsockets 1
 
 # Copy source code
 COPY . .
@@ -26,10 +26,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8081/ || exit 1
-
-# Set proper permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
 
 EXPOSE 8081
 
