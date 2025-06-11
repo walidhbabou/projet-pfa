@@ -2,26 +2,33 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/*
 
-# Pin specific versions to avoid deprecation warnings
+# Copy requirements
 COPY requirements.txt .
-RUN python -m pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Rasa files and models
+# Install Python packages en plusieurs étapes pour économiser l'espace
+RUN python -m pip install --upgrade pip --no-cache-dir && \
+    pip install --no-cache-dir wheel setuptools && \
+    pip install --no-cache-dir --no-deps rasa && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge && \
+    find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
+    find /usr/local/lib/python3.10 -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Copy Rasa files
 COPY . .
 
-# Environment variables to suppress warnings
-ENV SQLALCHEMY_SILENCE_UBER_WARNING=1 \
-    PYTHONWARNINGS="ignore::DeprecationWarning" \
-    RASA_MODEL_PATH=/app/models
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 EXPOSE 5005
 
-# Default command (can be overridden by Kubernetes)
-CMD ["rasa", "run", "-m", "/app/models/20250426-033857-visible-atmosphere.tar.gz", "--enable-api", "--cors", "*", "--debug"]
+CMD ["rasa", "run", "-m", "/app/models", "--enable-api", "--cors", "*"]

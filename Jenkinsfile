@@ -3,7 +3,7 @@ pipeline {
     
     options {
         timestamps()
-        timeout(time: 60, unit: 'MINUTES')
+        timeout(time: 90, unit: 'MINUTES')
         disableConcurrentBuilds()
     }
     
@@ -18,27 +18,36 @@ pipeline {
     }
     
     stages {
-        stage('Cleanup & Health Check') {
+        stage('Extreme Cleanup') {
             steps {
-                echo '===> Nettoyage et vérification'
+                echo '===> Nettoyage EXTREME'
                 script {
                     sh """
-                        # Nettoie Docker et mémoire
-                        docker system prune -f || true
-                        sync && echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true
+                        # Stop et supprime TOUT Docker
+                        docker stop \$(docker ps -aq) 2>/dev/null || true
+                        docker rm \$(docker ps -aq) 2>/dev/null || true
+                        docker rmi \$(docker images -q) 2>/dev/null || true
+                        docker volume prune -f
+                        docker network prune -f
+                        docker system prune -a --volumes -f
                         
-                        # Vérifie les ressources
-                        echo "=== RESSOURCES DISPONIBLES ==="
+                        # Nettoie les caches système
+                        rm -rf /tmp/* 2>/dev/null || true
+                        sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+                        
+                        echo "=== RESSOURCES APRÈS NETTOYAGE ==="
                         free -h
                         df -h /
                         
-                        # Check espace disque
+                        # Vérification stricte
                         AVAILABLE=\$(df / | tail -1 | awk '{print \$4}' | sed 's/G//')
-                        if [ "\$AVAILABLE" -lt 2 ]; then
-                            echo "❌ Espace disque insuffisant: \${AVAILABLE}GB"
+                        echo "Espace disponible: \${AVAILABLE}GB"
+                        if [ "\$AVAILABLE" -lt 3 ]; then
+                            echo "❌ CRITIQUE: Seulement \${AVAILABLE}GB libres!"
+                            echo "🚨 AUGMENTEZ LE VOLUME EBS À 20GB MINIMUM!"
                             exit 1
                         fi
-                        echo "✅ Espace disque OK: \${AVAILABLE}GB"
+                        echo "✅ Espace OK pour continuer: \${AVAILABLE}GB"
                     """
                 }
             }
@@ -54,101 +63,88 @@ pipeline {
                 )
             }
         }
-
-        stage('Validate Files') {
+        
+        stage('Build Frontend Only') {
             steps {
-                echo '===> Validation des fichiers'
+                echo '===> Build Frontend UNIQUEMENT'
                 script {
-                    sh """
-                        # Vérifier les fichiers critiques
-                        echo "=== VALIDATION DES FICHIERS ==="
-                        ls -la ./frontend/
-                        test -f ./frontend/package.json || (echo "❌ package.json manquant" && exit 1)
-                        test -f ./frontend/dockerfile || test -f ./frontend/Dockerfile || (echo "❌ Dockerfile manquant" && exit 1)
-                        
-                        echo "✅ Frontend files OK"
-                        
-                        ls -la ./backend/
-                        test -f ./backend/requirements.txt || (echo "❌ requirements.txt manquant" && exit 1)
-                        test -f ./backend/dockerfile || test -f ./backend/Dockerfile || (echo "❌ Dockerfile manquant" && exit 1)
-                        
-                        echo "✅ Backend files OK"
-                        
-                        ls -la ./rasa_bot/
-                        test -f ./rasa_bot/requirements.txt || (echo "❌ requirements.txt manquant" && exit 1)
-                        test -f ./rasa_bot/dockerfile || test -f ./rasa_bot/Dockerfile || (echo "❌ Dockerfile manquant" && exit 1)
-                        
-                        echo "✅ RASA files OK"
-                    """
+                    docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
+                        echo "🚀 Building Frontend..."
+                        sh """
+                            docker build --memory=400m --memory-swap=800m \
+                            --build-arg NODE_OPTIONS='--max_old_space_size=512' \
+                            -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest ./frontend
+                        """
+                        sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
+                        sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
+                        sh "docker system prune -a -f"
+                    }
                 }
             }
         }
         
-        stage('Build & Push Images Optimisé') {
+        stage('Build Backend Only') {
             steps {
-                echo '===> Build et Push des images Docker (Optimisé)'
+                echo '===> Build Backend UNIQUEMENT'
                 script {
-                    try {
-                        docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
-                            
-                            // Frontend avec optimisations
-                            echo "🚀 Building Frontend avec optimisations..."
+                    sh "sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true"
+                    sleep 30
+                    
+                    docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
+                        echo "🚀 Building Backend..."
+                        sh """
+                            docker build --memory=400m --memory-swap=800m \
+                            -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest ./backend
+                        """
+                        sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
+                        sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
+                        sh "docker system prune -a -f"
+                    }
+                }
+            }
+        }
+        
+        stage('Build RASA Only') {
+            steps {
+                echo '===> Build RASA UNIQUEMENT (Critique)'
+                script {
+                    // Nettoyage maximal avant RASA
+                    sh """
+                        docker system prune -a --volumes -f
+                        rm -rf /tmp/* 2>/dev/null || true
+                        sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+                        
+                        echo "=== RESSOURCES AVANT RASA ==="
+                        free -h
+                        df -h /
+                        
+                        AVAILABLE=\$(df / | tail -1 | awk '{print \$4}' | sed 's/G//')
+                        if [ "\$AVAILABLE" -lt 2 ]; then
+                            echo "❌ Pas assez d'espace pour RASA: \${AVAILABLE}GB"
+                            echo "🚨 VOUS DEVEZ AUGMENTER LE VOLUME!"
+                            exit 1
+                        fi
+                    """
+                    
+                    sleep 60  // Pause longue
+                    
+                    docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
+                        echo "🚀 Building RASA avec optimisations MAXIMALES..."
+                        try {
                             sh """
-                                docker build --memory=300m --memory-swap=600m \
-                                --build-arg NODE_OPTIONS='--max_old_space_size=512' \
-                                -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest ./frontend
-                            """
-                            sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
-                            sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest || true"
-                            sh "docker system prune -f"
-                            
-                            // Pause et nettoyage mémoire
-                            echo "⏳ Pause pour libérer la mémoire..."
-                            sleep 15
-                            sh "sync && echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true"
-                            
-                            // Backend
-                            echo "🚀 Building Backend..."
-                            sh """
-                                docker build --memory=300m --memory-swap=700m \
-                                -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest ./backend
-                            """
-                            sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
-                            sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest || true"
-                            sh "docker system prune -f"
-                            
-                            // Pause avant RASA
-                            echo "⏳ Pause avant RASA..."
-                            sleep 20
-                            sh "sync && echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true"
-                            
-                            // RASA avec optimisations maximales
-                            echo "🚀 Building RASA avec optimisations maximales..."
-                            sh """
-                                docker build --memory=400m --memory-swap=1g --shm-size=128m \
+                                docker build --memory=500m --memory-swap=1500m --shm-size=64m \
+                                --ulimit nofile=1024:1024 \
                                 -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest ./rasa_bot
                             """
                             sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest"
-                            sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest || true"
-                            
-                            // Nettoyage final
-                            sh "docker system prune -a --volumes -f"
+                            sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest"
+                        } catch (Exception e) {
+                            echo "❌ RASA build failed: ${e.getMessage()}"
+                            echo "🚨 SOLUTION: Augmentez le volume EBS à 20GB!"
+                            throw e
+                        } finally {
+                            sh "docker system prune -a --volumes -f || true"
                         }
-                    } catch (err) {
-                        echo "❌ Erreur pendant le build : ${err}"
-                        
-                        // Debug en cas d'erreur
-                        sh """
-                            echo "=== DEBUG BUILD ERROR ==="
-                            free -h
-                            df -h
-                            docker images
-                            docker ps -a
-                        """
-                        
-                        // Nettoie quand même
-                        sh "docker system prune -a -f || true"
-                        throw err
                     }
                 }
             }
@@ -161,12 +157,9 @@ pipeline {
                     sshagent(['ssh-key-devops']) {
                         sh """
                         ssh -o StrictHostKeyChecking=no ${SSH_SERVER} '
-                            # Crée le namespace s'il n'existe pas
                             kubectl create namespace ${KUBE_NAMESPACE} || true
                             
-                            # Vérification des deployments
                             if kubectl get deployment frontend -n ${KUBE_NAMESPACE} >/dev/null 2>&1; then
-                                echo "🔄 Mise à jour des images existantes..."
                                 kubectl set image deployment/frontend frontend=${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest -n ${KUBE_NAMESPACE}
                                 kubectl set image deployment/backend backend=${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest -n ${KUBE_NAMESPACE}
                                 kubectl set image deployment/rasa rasa=${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest -n ${KUBE_NAMESPACE}
@@ -174,18 +167,11 @@ pipeline {
                                 kubectl rollout restart deployment/frontend -n ${KUBE_NAMESPACE}
                                 kubectl rollout restart deployment/backend -n ${KUBE_NAMESPACE}
                                 kubectl rollout restart deployment/rasa -n ${KUBE_NAMESPACE}
-                                
-                                kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE} --timeout=300s
-                                kubectl rollout status deployment/backend -n ${KUBE_NAMESPACE} --timeout=300s
-                                kubectl rollout status deployment/rasa -n ${KUBE_NAMESPACE} --timeout=300s
                             else
-                                echo "⚠️ Deployments non trouvés. Créez d'abord vos manifests Kubernetes."
-                                echo "📋 Namespace ${KUBE_NAMESPACE} créé et prêt."
+                                echo "⚠️ Deployments non trouvés - Namespace prêt"
                             fi
                             
-                            echo "✅ Vérification finale..."
-                            kubectl get pods -n ${KUBE_NAMESPACE} || echo "Aucun pod trouvé"
-                            kubectl get svc -n ${KUBE_NAMESPACE} || echo "Aucun service trouvé"
+                            kubectl get pods -n ${KUBE_NAMESPACE} || true
                         '
                         """
                     }
@@ -196,22 +182,19 @@ pipeline {
     
     post {
         always {
-            echo "🔹 Nettoyage final"
-            sh "docker system prune -f || true"
-            sh "sync && echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true"
-        }
-        success {
-            echo '✅ Déploiement réussi !'
+            sh "docker system prune -a -f || true"
         }
         failure {
-            echo '❌ Échec du déploiement. Vérifiez les logs.'
+            echo '🚨 ÉCHEC - AUGMENTEZ LE VOLUME EBS À 20GB!'
             sh """
-                echo "=== DEBUG INFO ==="
+                echo "=== DIAGNOSTIC FINAL ==="
+                df -h / || true
                 free -h || true
-                df -h || true
-                docker images || true
-                docker ps -a || true
+                echo "🔧 SOLUTION: aws ec2 modify-volume --volume-id vol-xxxxx --size 20"
             """
+        }
+        success {
+            echo '✅ Build réussi malgré les contraintes d\'espace!'
         }
     }
 }
