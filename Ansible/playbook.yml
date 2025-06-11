@@ -4,13 +4,16 @@
   become: yes
 
   vars:
-    jenkins_version: "2.426"  # Version spécifique de Jenkins pour stabilité
-    docker_ce_version: "24.0"  # Version spécifique de Docker CE
+    jenkins_version: "2.426"
 
   handlers:
     - name: Restart Docker
       service:
         name: docker
+        state: restarted
+    - name: Restart Jenkins
+      service:
+        name: jenkins
         state: restarted
 
   tasks:
@@ -22,26 +25,17 @@
           - lvm2
         state: present
 
-    # Vérification de la version de CentOS
-    - name: Debug distribution version
-      debug:
-        var: ansible_distribution_major_version
-
-    - name: Ajouter le repository Docker
+    - name: Supprimer le repository Docker CE s'il existe
       yum_repository:
         name: docker-ce
-        description: Docker CE Stable
-        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable
-        gpgcheck: yes
-        gpgkey: https://download.docker.com/linux/centos/gpg
-        enabled: yes
+        state: absent
 
-    - name: Installer Docker
+    - name: Nettoyer le cache YUM
+      command: yum clean all
+
+    - name: Installer Docker (Amazon Linux 2)
       yum:
-        name:
-          - docker-ce-{{ docker_ce_version }}
-          - docker-ce-cli-{{ docker_ce_version }}
-          - containerd.io
+        name: docker
         state: present
       notify: Restart Docker
 
@@ -77,9 +71,9 @@
 
     - name: Installer Jenkins
       yum:
-        name: "jenkins-{{ jenkins_version }}"
+        name: jenkins
         state: present
-        disable_gpg_check: no
+      notify: Restart Jenkins
 
     - name: Démarrer Jenkins
       service:
@@ -95,6 +89,20 @@
     - name: Afficher le mot de passe Jenkins
       debug:
         msg: "Mot de passe admin Jenkins initial: {{ jenkins_password.stdout }}"
+
+    - name: Installer les plugins Jenkins essentiels
+      jenkins_plugin:
+        name: "{{ item }}"
+        state: present
+        url: http://localhost:8080
+        url_username: admin
+        url_password: "{{ jenkins_password.stdout }}"
+        with_dependencies: yes
+      loop:
+        - git
+        - docker-plugin
+        - kubernetes
+      notify: Restart Jenkins
 
 - name: Configuration du nœud master Kubernetes
   hosts: master
@@ -196,13 +204,72 @@
         state: present
         allow_downgrades: yes
 
+    - name: Générer la config par défaut de containerd
+      shell: |
+        containerd config default | tee /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Activer SystemdCgroup dans containerd
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: '^(\s*)SystemdCgroup = false'
+        replace: '\1SystemdCgroup = true'
+
+    - name: Redémarrer et activer containerd
+      service:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+    - name: Activer le module br_netfilter
+      modprobe:
+        name: br_netfilter
+
+    - name: Configurer les paramètres sysctl pour Kubernetes
+      sysctl:
+        name: "{{ item }}"
+        value: '1'
+        sysctl_set: yes
+        state: present
+        reload: yes
+      loop:
+        - net.bridge.bridge-nf-call-ip6tables
+        - net.bridge.bridge-nf-call-iptables
+        - net.ipv4.ip_forward
+
+    - name: Redémarrer kubelet
+      service:
+        name: kubelet
+        state: restarted
+        enabled: yes
+
     - name: Initialiser le cluster Kubernetes
       command: kubeadm init --pod-network-cidr={{ pod_network_cidr }} --ignore-preflight-errors=all
       when: inventory_hostname == groups['master'][0]
 
-    - name: Configurer kubectl pour l'utilisateur root
-      become: false
-      command: mkdir -p /root/.kube && cp /etc/kubernetes/admin.conf /root/.kube/config
+    - name: Créer le répertoire .kube pour root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Copier le fichier de configuration kubectl
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Configurer kubectl pour l'utilisateur ubuntu
+      shell: |
+        mkdir -p /home/ubuntu/.kube
+        cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+        chown ubuntu:ubuntu /home/ubuntu/.kube/config
       when: inventory_hostname == groups['master'][0]
 
     - name: Installer le réseau Pod (Flannel)
@@ -226,96 +293,65 @@
   vars:
     k8s_version: "1.29.2"
 
-  handlers:
-    - name: Restart Docker
-      service:
-        name: docker
-        state: restarted
-    - name: Restart kubelet
-      service:
-        name: kubelet
-        state: restarted
-
   tasks:
-    - name: Mettre à jour le cache apt
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-
-    - name: Installer les dépendances
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-        state: present
-
-    - name: Ajouter la clé GPG Docker
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
-
-    - name: Ajouter le repository Docker
-      apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-        state: present
-        filename: docker-ce
-
-    - name: Installer Docker
-      apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-        state: present
-      notify: Restart Docker
-
-    - name: Configurer Docker pour systemd
-      copy:
-        dest: /etc/docker/daemon.json
-        content: |
-          {
-            "exec-opts": ["native.cgroupdriver=systemd"],
-            "log-driver": "json-file",
-            "log-opts": {
-              "max-size": "100m"
-            },
-            "storage-driver": "overlay2"
-          }
-
-    - name: Activer et démarrer Docker
-      service:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Désactiver swap
+    - name: Installation et configuration complète du worker
       shell: |
+        #!/bin/bash
+        set -e
+        
+        # Nettoyage complet
+        systemctl stop kubelet containerd docker || true
+        kubeadm reset -f || true
+        apt-get remove -y containerd.io kubelet kubeadm || true
+        rm -rf /var/lib/containerd/ /run/containerd/ /etc/containerd/ /etc/kubernetes/ /var/lib/kubelet/ /etc/cni/
+        
+        # Installation
+        apt-get update
+        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+        
+        # Docker
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io
+        
+        # Configuration Docker
+        mkdir -p /etc/docker
+        echo '{"exec-opts": ["native.cgroupdriver=systemd"],"log-driver": "json-file","log-opts": {"max-size": "100m"},"storage-driver": "overlay2"}' > /etc/docker/daemon.json
+        
+        # Kubernetes
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+        apt-get update
+        apt-get install -y kubelet=1.29.2-* kubeadm=1.29.2-*
+        
+        # Containerd
+        mkdir -p /etc/containerd
+        containerd config default > /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+        
+        # Réseau
+        modprobe br_netfilter
+        echo -e 'net.bridge.bridge-nf-call-ip6tables = 1\nnet.bridge.bridge-nf-call-iptables = 1\nnet.ipv4.ip_forward = 1' > /etc/sysctl.d/k8s.conf
+        sysctl --system
+        
+        # Swap
         swapoff -a
         sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+        
+        # Services
+        systemctl daemon-reload
+        systemctl enable --now docker containerd kubelet
+        
+        sleep 10
+        echo "Configuration terminée"
+      register: setup_result
       ignore_errors: yes
 
-    - name: Ajouter la clé GPG Kubernetes
-      apt_key:
-        url: https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0:2] | join('.') }}/deb/Release.key
-        state: present
+    - name: Afficher le résultat de la configuration
+      debug:
+        var: setup_result.stdout
 
-    - name: Ajouter le repository Kubernetes
-      apt_repository:
-        repo: "deb [arch=amd64] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0:2] | join('.') }}/deb/ /"
-        state: present
-        filename: kubernetes
-
-    - name: Installer les packages Kubernetes
-      apt:
-        name:
-          - kubelet={{ k8s_version }}-*
-          - kubeadm={{ k8s_version }}-*
-        state: present
-        allow_downgrades: yes
-
-    - name: Joindre le cluster Kubernetes
-      command: "{{ hostvars[groups['master'][0]]['join_command']['stdout'] }}"
+    - name: Joindre le cluster
+      command: "{{ hostvars[groups['master'][0]]['join_command']['stdout'] }} --ignore-preflight-errors=all"
       when: inventory_hostname in groups['worker']

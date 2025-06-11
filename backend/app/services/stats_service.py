@@ -1,191 +1,130 @@
 from datetime import datetime, timedelta
-from ..database.mongodb import get_users_collection, get_chat_history_collection, get_faqs_collection
+from ..database.mongodb import get_users_collection, get_chat_history_collection
 
 class StatsService:
     def __init__(self):
         self.users_collection = get_users_collection()
         self.chat_history_collection = get_chat_history_collection()
-        self.faq_collection = get_faqs_collection()
 
-    def get_user_stats(self, period='month'):
-        """Récupère les statistiques des utilisateurs pour une période donnée"""
-        if period == 'week':
-            since = datetime.utcnow() - timedelta(days=7)
-        elif period == 'month':
-            since = datetime.utcnow() - timedelta(days=30)
-        elif period == 'year':
-            since = datetime.utcnow() - timedelta(days=365)
-        else:
-            since = datetime.utcnow() - timedelta(days=30)
-
-        # Statistiques des utilisateurs
-        total_users = self.users_collection.count_documents({})
-        
-        # Nombre de conversations uniques
-        chat_count = len(self.chat_history_collection.distinct("session_id"))
-        
-        # Nombre de réponses FAQ
-        faq_count = self.faq_collection.count_documents({})
-
-        # Distribution des types d'utilisateurs
-        user_types = list(self.users_collection.aggregate([
-            {"$group": {
-                "_id": "$role",
-                "count": {"$sum": 1}
-            }},
-            {"$project": {
-                "name": "$_id",
-                "value": "$count",
-                "_id": 0
-            }}
-        ]))
-
-        # Activité des utilisateurs
-        activity_data = list(self.chat_history_collection.aggregate([
-            {"$match": {
-                "timestamp": {"$gte": since}
-            }},
-            {"$group": {
-                "_id": {
-                    "year": {"$year": "$timestamp"},
-                    "month": {"$month": "$timestamp"},
-                    "day": {"$dayOfMonth": "$timestamp"}
-                },
-                "messages": {"$sum": 1},
-                "users": {"$addToSet": "$user_id"}
-            }},
-            {"$sort": {"_id": 1}},
-            {"$project": {
-                "date": {
-                    "$dateToString": {
-                        "format": "%Y-%m-%d",
-                        "date": {
-                            "$dateFromParts": {
-                                "year": "$_id.year",
-                                "month": "$_id.month",
-                                "day": "$_id.day"
-                            }
-                        }
-                    }
-                },
-                "messages": 1,
-                "users": {"$size": "$users"},
-                "_id": 0
-            }}
-        ]))
-
-        return {
-            "total_users": total_users,
-            "chat_count": chat_count,
-            "faq_count": faq_count,
-            "user_types": user_types,
-            "activity_data": activity_data
-        }
-
-    def get_detailed_stats(self, period='month'):
-        """Récupère des statistiques détaillées pour une période donnée"""
-        if period == 'week':
-            since = datetime.utcnow() - timedelta(days=7)
-        elif period == 'month':
-            since = datetime.utcnow() - timedelta(days=30)
-        elif period == 'year':
-            since = datetime.utcnow() - timedelta(days=365)
-        else:
-            since = datetime.utcnow() - timedelta(days=30)
-
-        # Statistiques détaillées
-        daily_stats = list(self.chat_history_collection.aggregate([
-            {"$match": {
-                "timestamp": {"$gte": since}
-            }},
-            {"$group": {
-                "_id": {
-                    "year": {"$year": "$timestamp"},
-                    "month": {"$month": "$timestamp"},
-                    "day": {"$dayOfMonth": "$timestamp"}
-                },
-                "messageCount": {"$sum": 1},
-                "userCount": {"$addToSet": "$user_id"},
-                "responseTimes": {"$push": "$response_time"}
-            }},
-            {"$sort": {"_id": 1}},
-            {"$project": {
-                "date": {
-                    "$dateToString": {
-                        "format": "%Y-%m-%d",
-                        "date": {
-                            "$dateFromParts": {
-                                "year": "$_id.year",
-                                "month": "$_id.month",
-                                "day": "$_id.day"
-                            }
-                        }
-                    }
-                },
-                "messageCount": 1,
-                "userCount": {"$size": "$userCount"},
-                "avgResponseTime": {"$avg": "$responseTimes"},
-                "_id": 0
-            }}
-        ]))
-
-        return {
-            "dailyStats": daily_stats
-        }
-
-    def get_stats(self, period='month'):
+    def get_stats(self):
         try:
-            # Calculer la date de début en fonction de la période
-            if period == 'day':
-                start_date = datetime.now() - timedelta(days=1)
-            elif period == 'week':
-                start_date = datetime.now() - timedelta(weeks=1)
-            else:  # month par défaut
-                start_date = datetime.now() - timedelta(days=30)
-
-            # Récupérer les statistiques
             total_users = self.users_collection.count_documents({})
-            chat_count = self.chat_history_collection.count_documents({
-                'timestamp': {'$gte': start_date}
+
+            # Get active users (users who have logged in within the last 30 days)
+            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            active_users = self.users_collection.count_documents({
+                "last_login": {"$gte": thirty_days_ago}
             })
-            faq_count = self.faq_collection.count_documents({})
 
-            # Récupérer la répartition des types d'utilisateurs
-            user_types = self.users_collection.aggregate([
-                {'$group': {'_id': '$role', 'count': {'$sum': 1}}}
-            ])
-            user_types = {doc['_id']: doc['count'] for doc in user_types}
+            # Get total conversations
+            total_conversations = self.chat_history_collection.count_documents({})
 
-            # Récupérer les données d'activité
-            activity_data = self.chat_history_collection.aggregate([
-                {
-                    '$match': {
-                        'timestamp': {'$gte': start_date}
-                    }
-                },
-                {
-                    '$group': {
-                        '_id': {
-                            '$dateToString': {
-                                'format': '%Y-%m-%d',
-                                'date': '$timestamp'
-                            }
-                        },
-                        'count': {'$sum': 1}
-                    }
-                },
-                {'$sort': {'_id': 1}}
-            ])
-            activity_data = [{'date': doc['_id'], 'count': doc['count']} for doc in activity_data]
+            # Get total announcements
+            total_announcements = self.users_collection.count_documents({
+                "type": "announcement"
+            })
 
             return {
-                'total_users': total_users,
-                'chat_count': chat_count,
-                'faq_count': faq_count,
-                'user_types': user_types,
-                'activity_data': activity_data
+                "total_users": total_users,
+                "active_users": active_users,
+                "total_conversations": total_conversations,
+                "total_announcements": total_announcements
             }
-
         except Exception as e:
-            print(f"Erreur dans get_stats: {str(e)}")
-            raise 
+            raise Exception(f"Error getting stats: {str(e)}")
+
+    def get_activity_data(self, days=30):
+        try:
+            start_date = datetime.utcnow() - timedelta(days=days)
+            
+            # Get user activity
+            user_activity = list(self.users_collection.aggregate([
+                {
+                    "$match": {
+                        "last_login": {"$gte": start_date}
+                    }
+                },
+                {
+                    "$group": {
+                "_id": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%d",
+                                "date": "$last_login"
+                            }
+                        },
+                        "users": {"$sum": 1}
+                    }
+                }
+            ]))
+
+            # Get conversation activity
+            conversation_activity = list(self.chat_history_collection.aggregate([
+                {
+                    "$match": {
+                        "created_at": {"$gte": start_date}
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": {
+                            "$dateToString": {
+                                "format": "%Y-%m-%d",
+                                "date": "$created_at"
+                            }
+                        },
+                        "messages": {"$sum": 1}
+                    }
+                }
+            ]))
+
+            # Combine the data
+            activity_data = []
+            current_date = start_date
+            while current_date <= datetime.utcnow():
+                date_str = current_date.strftime("%Y-%m-%d")
+                activity_data.append({
+                    "date": date_str,
+                    "users": 0,
+                    "messages": 0
+                })
+                current_date += timedelta(days=1)
+
+            # Fill in the actual data
+            for user in user_activity:
+                for activity in activity_data:
+                    if activity["date"] == user["_id"]:
+                        activity["users"] = user["users"]
+                        break
+
+            for conv in conversation_activity:
+                for activity in activity_data:
+                    if activity["date"] == conv["_id"]:
+                        activity["messages"] = conv["messages"]
+                        break
+
+            return activity_data
+        except Exception as e:
+            raise Exception(f"Error getting activity data: {str(e)}")
+
+    def get_user_types(self):
+        try:
+            # Get user types distribution
+            user_types = list(self.users_collection.aggregate([
+                {
+                    "$group": {
+                        "_id": "$role",
+                        "value": {"$sum": 1}
+                    }
+                },
+                {
+                    "$project": {
+                        "name": "$_id",
+                        "value": 1,
+                        "_id": 0
+                    }
+                }
+            ]))
+
+            return user_types
+        except Exception as e:
+            raise Exception(f"Error getting user types: {str(e)}") 

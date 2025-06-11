@@ -3,7 +3,7 @@ from .mongodb import (
     get_db,
     get_users_collection,
     get_chat_history_collection,
-    get_faqs_collection,
+   
     get_announcements_collection
 )
 from werkzeug.security import generate_password_hash
@@ -25,6 +25,6 @@ __all__ = [
     'get_db',
     'get_users_collection',
     'get_chat_history_collection',
-    'get_faqs_collection',
+    
     'get_announcements_collection'
 ]

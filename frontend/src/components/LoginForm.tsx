@@ -22,27 +22,32 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     
     try {
       const response = await authService.login(email, password);
-      toast({
-        title: "Connexion réussie",
-        description: "Vous êtes maintenant connecté."
-      });
       
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        // Redirection basée sur le rôle
-        if (authService.isAdmin()) {
-          navigate('/admin/dashboard');
+      if (response.success) {
+        toast({
+          title: "Connexion réussie",
+          description: "Vous êtes maintenant connecté."
+        });
+        
+        if (onSuccess) {
+          onSuccess();
         } else {
-          navigate('/chat');
+          // Redirection basée sur le rôle
+          const userData = JSON.parse(localStorage.getItem('fsts_user') || '{}');
+          if (userData.role === 'admin') {
+            navigate('/admin');
+          } else {
+            navigate('/chat');
+          }
         }
+      } else {
+        throw new Error(response.message || 'Erreur de connexion');
       }
-      
     } catch (error) {
       console.error('Login error:', error);
       toast({
         title: "Erreur de connexion",
-        description: "Email ou mot de passe incorrect.",
+        description: error instanceof Error ? error.message : "Email ou mot de passe incorrect.",
         variant: "destructive"
       });
     } finally {

@@ -1,24 +1,45 @@
 pipeline {
     agent any
-
+    
     options {
-        timestamps() // Affiche les timestamps dans les logs
-        timeout(time: 30, unit: 'MINUTES') // Ajout d'un timeout pour éviter les builds bloqués
+        timestamps()
+        timeout(time: 45, unit: 'MINUTES')
     }
-
+    
     environment {
         DOCKERHUB_USER = 'walidhbabou'
         DOCKERHUB_REPO_FRONTEND = 'chatbootfsts-frontend'
         DOCKERHUB_REPO_BACKEND = 'chatbootfsts-backend'
         DOCKERHUB_REPO_RASA = 'chatbootfsts-rasa'
         KUBE_NAMESPACE = 'chatbootfsts'
-        SSH_SERVER = 'ubuntu@107.21.73.241'
+        SSH_SERVER = 'ubuntu@44.215.111.1'
     }
-
+    
     stages {
+        stage('Cleanup & Health Check') {
+            steps {
+                echo '===> Nettoyage et vérification'
+                script {
+                    sh """
+                        # Nettoie Docker
+                        docker system prune -f || true
+                        
+                        # Vérifie l'espace disque
+                        df -h /
+                        AVAILABLE=\$(df / | tail -1 | awk '{print \$4}' | sed 's/G//')
+                        if [ "\$AVAILABLE" -lt 3 ]; then
+                            echo "❌ Espace disque insuffisant: \${AVAILABLE}GB"
+                            exit 1
+                        fi
+                        echo "✅ Espace disque OK: \${AVAILABLE}GB"
+                    """
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
-                echo '===> Étape: Checkout'
+                echo '===> Récupération du code'
                 checkout scmGit(
                     branches: [[name: '*/main']],
                     extensions: [],
@@ -26,90 +47,78 @@ pipeline {
                 )
             }
         }
-
-        stage('Build & Push Docker Images') {
+        
+        stage('Build & Push Images') {
             steps {
-                echo '===> Étape: Build & Push Docker Images'
+                echo '===> Build et Push des images Docker'
                 script {
-                    try {
-                        docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
-                            // Build et push frontend
-                            def frontendImage = docker.build("${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest", "./frontend")
-                            frontendImage.push()
-                            
-                            // Build et push backend
-                            def backendImage = docker.build("${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest", "./backend")
-                            backendImage.push()
-                            
-                            // Build et push rasa
-                            def rasaImage = docker.build("${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest", "./rasa_bot")
-                            rasaImage.push()
-                        }
-                    } catch (err) {
-                        echo "❌ Erreur pendant le build ou le push des images Docker : ${err}"
-                        currentBuild.result = 'FAILURE'
-                        error("Échec de l'étape Build & Push Docker Images")
+                    docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
+                        
+                        // Frontend (le plus léger)
+                        echo "🚀 Building Frontend..."
+                        def frontendImage = docker.build("${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest", "./frontend")
+                        frontendImage.push()
+                        sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest || true"
+                        
+                        // Backend
+                        echo "🚀 Building Backend..."
+                        def backendImage = docker.build("${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest", "./backend")
+                        backendImage.push()
+                        sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest || true"
+                        
+                        // RASA (en dernier car plus lourd)
+                        echo "🚀 Building RASA..."
+                        def rasaImage = docker.build("${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest", "./rasa_bot")
+                        rasaImage.push()
+                        sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest || true"
+                        
+                        // Nettoyage final
+                        sh "docker system prune -f || true"
                     }
                 }
             }
         }
-
+        
         stage('Deploy to Kubernetes') {
             steps {
-                echo '===> Étape: Deploy to Kubernetes'
-                script {
-                    try {
-                        sshagent(['ssh-key-devops']) {
-                            sh """
-ssh -o StrictHostKeyChecking=no ${SSH_SERVER} '
-  echo "Images avant mise à jour :"
-  kubectl -n ${KUBE_NAMESPACE} get deployment frontend -o jsonpath="{.spec.template.spec.containers[0].image}"
-  kubectl -n ${KUBE_NAMESPACE} get deployment backend -o jsonpath="{.spec.template.spec.containers[0].image}"
-  kubectl -n ${KUBE_NAMESPACE} get deployment rasa -o jsonpath="{.spec.template.spec.containers[0].image}"
-  
-  echo "Mise à jour des images dans Kubernetes..."
-  kubectl set image deployment/frontend frontend=${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest -n ${KUBE_NAMESPACE} || exit 1
-  kubectl set image deployment/backend backend=${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest -n ${KUBE_NAMESPACE} || exit 1
-  kubectl set image deployment/rasa rasa=${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest -n ${KUBE_NAMESPACE} || exit 1
-
-  echo "Redémarrage des déploiements..."
-  kubectl rollout restart deployment/frontend -n ${KUBE_NAMESPACE}
-  kubectl rollout restart deployment/backend -n ${KUBE_NAMESPACE}
-  kubectl rollout restart deployment/rasa -n ${KUBE_NAMESPACE}
-
-  echo "Status des rollouts :"
-  kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE}
-  kubectl rollout status deployment/backend -n ${KUBE_NAMESPACE}
-  kubectl rollout status deployment/rasa -n ${KUBE_NAMESPACE}
-
-  echo "Vérification des pods..."
-  kubectl get pods -n ${KUBE_NAMESPACE} -w
-
-  echo "✅ Déploiement Kubernetes terminé"
-'
-"""
-                        }
-                    } catch (err) {
-                        echo "❌ Erreur lors du déploiement sur Kubernetes : ${err}"
-                        currentBuild.result = 'FAILURE'
-                        error("Échec de l'étape Deploy to Kubernetes")
-                    }
+                echo '===> Déploiement sur Kubernetes'
+                sshagent(['ssh-key-devops']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ${SSH_SERVER} '
+                        echo "🔄 Mise à jour des images..."
+                        kubectl set image deployment/frontend frontend=${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest -n ${KUBE_NAMESPACE}
+                        kubectl set image deployment/backend backend=${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest -n ${KUBE_NAMESPACE}
+                        kubectl set image deployment/rasa rasa=${DOCKERHUB_USER}/${DOCKERHUB_REPO_RASA}:latest -n ${KUBE_NAMESPACE}
+                        
+                        echo "🔄 Redémarrage des deployments..."
+                        kubectl rollout restart deployment/frontend -n ${KUBE_NAMESPACE}
+                        kubectl rollout restart deployment/backend -n ${KUBE_NAMESPACE}
+                        kubectl rollout restart deployment/rasa -n ${KUBE_NAMESPACE}
+                        
+                        echo "⏳ Attente du déploiement..."
+                        kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE} --timeout=300s
+                        kubectl rollout status deployment/backend -n ${KUBE_NAMESPACE} --timeout=300s
+                        kubectl rollout status deployment/rasa -n ${KUBE_NAMESPACE} --timeout=300s
+                        
+                        echo "✅ Vérification finale..."
+                        kubectl get pods -n ${KUBE_NAMESPACE}
+                        kubectl get svc -n ${KUBE_NAMESPACE}
+                    '
+                    """
                 }
             }
         }
     }
-
+    
     post {
         always {
-            echo "🔹 Nettoyage après l'exécution du pipeline"
-        }
-        failure {
-            echo '🚨 Le pipeline a échoué. Consultez les logs ci-dessus pour plus de détails.'
-            // Ici vous pourriez ajouter une notification (email, Slack, etc.)
+            sh "docker system prune -f || true"
         }
         success {
             echo '✅ Déploiement réussi !'
-            // Ici vous pourriez ajouter une notification de succès
+        }
+        failure {
+            echo '❌ Échec du déploiement. Vérifiez les logs.'
         }
     }
 }

@@ -1,4 +1,3 @@
-
 version: "3.1"
 
 stories:
@@ -36,3 +35,14 @@ stories:
   steps:
   - intent: ask_general_info
   - action: utter_general_info
+
+- story: unavailable service path
+  steps:
+  - or:
+      - intent: ask_contact_info
+      - intent: ask_stats
+      - intent: ask_formation
+      - intent: ask_announcements
+      - intent: ask_latest_news
+      - intent: ask_events
+  - action: utter_service_unavailable

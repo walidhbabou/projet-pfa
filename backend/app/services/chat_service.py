@@ -1,67 +1,158 @@
 import requests
 import uuid
 from datetime import datetime, timedelta
-from bson import ObjectId
+from bson import ObjectId, errors as bson_errors
 from ..config.config import Config
 
 class ChatService:
-    def __init__(self, chat_history_collection):
+    def __init__(self, chat_history_collection, users_collection):
         self.chat_history_collection = chat_history_collection
+        self.users_collection = users_collection
 
     def get_rasa_response(self, message):
         try:
+            if not message or not isinstance(message, str):
+                return "Message invalide. Veuillez réessayer."
+
+            print(f"\n=== Communication avec Rasa ===")
+            print(f"Message à envoyer: {message}")
+            print(f"URL Rasa: {Config.RASA_API_URL}/webhooks/rest/webhook")
+            
+            # Configuration de la requête
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+            
+            payload = {
+                "sender": "user",
+                "message": message
+            }
+            
+            print(f"Payload: {payload}")
+            print(f"Headers: {headers}")
+            
+            # Envoi de la requête
             response = requests.post(
                 f"{Config.RASA_API_URL}/webhooks/rest/webhook",
-                json={"message": message}
+                json=payload,
+                headers=headers,
+                timeout=15
             )
+            
+            print(f"Réponse de Rasa - Status: {response.status_code}")
+            print(f"Réponse de Rasa - Headers: {response.headers}")
+            print(f"Réponse de Rasa - Contenu: {response.text}")
+            
             if response.status_code == 200:
-                return response.json()[0]["text"] if response.json() else "Je suis désolé, je n'ai pas compris votre message."
+                data = response.json()
+                print(f"Données parsées: {data}")
+                
+                if data and len(data) > 0:
+                    if "text" in data[0]:
+                        return data[0]["text"]
+                    elif "custom" in data[0]:
+                        return data[0]["custom"]
+                    else:
+                        print(f"Format de réponse inattendu: {data[0]}")
+                        return "Je suis désolé, je n'ai pas compris votre message."
+                else:
+                    print("Réponse vide de Rasa")
+                return "Je suis désolé, je n'ai pas compris votre message."
+            else:
+                print(f"Erreur HTTP: {response.status_code}")
+            return "Désolé, je rencontre des problèmes techniques."
+                
+        except requests.Timeout:
+            print("Timeout lors de la communication avec Rasa")
+            return "Désolé, le service est temporairement indisponible. Veuillez réessayer plus tard."
+        except requests.RequestException as e:
+            print(f"Erreur de communication avec Rasa: {e}")
             return "Désolé, je rencontre des problèmes techniques."
         except Exception as e:
-            print(f"Rasa error: {e}")
-            return "Désolé, je rencontre des problèmes techniques."
+            print(f"Erreur inattendue: {e}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return "Désolé, une erreur inattendue s'est produite."
 
     def save_to_chat_history(self, user_id, message, response, session_id=None):
-        if not session_id:
-            session_id = str(uuid.uuid4())
-
-        chat_entry = {
-            "user_id": user_id,
-            "session_id": session_id,
-            "message": message,
-            "response": response,
-            "timestamp": datetime.utcnow()
-        }
-        
         try:
-            self.chat_history_collection.insert_one(chat_entry)
-            print(f"Message saved to chat history for session {session_id}")
+            if not user_id or not message or not response:
+                raise ValueError("Données manquantes pour l'enregistrement du chat")
+
+            if not session_id:
+                session_id = str(uuid.uuid4())
+            elif not isinstance(session_id, str):
+                raise ValueError("Format de session_id invalide")
+
+            chat_entry = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "message": message,
+                "response": response,
+                "timestamp": datetime.utcnow()
+            }
+            
+            result = self.chat_history_collection.insert_one(chat_entry)
+            if not result.inserted_id:
+                raise Exception("Échec de l'insertion dans l'historique")
+                
+            print(f"Message enregistré dans l'historique pour la session {session_id}")
             return session_id
+        except ValueError as e:
+            print(f"Erreur de validation: {e}")
+            raise
         except Exception as e:
-            print(f"Error saving to chat history: {e}")
+            print(f"Erreur lors de l'enregistrement dans l'historique: {e}")
             raise
 
-    def get_user_chat_history(self, user_id, limit=50):
+    def get_user_chat_history(self, user_id_obj, limit=50):
         try:
+            if not user_id_obj:
+                return []
+                
+            if not isinstance(limit, int) or limit < 1:
+                limit = 50
+            
+            # Find the user by ObjectId to get their email (for older entries)
+            user_data = self.users_collection.find_one({"_id": user_id_obj})
+            user_email = user_data['email'] if user_data and 'email' in user_data else None
+
+            # Query for chat history using either the ObjectId or the email
+            query = {"$or": [{'user_id': user_id_obj}]}
+            if user_email:
+                query['$or'].append({'user_id': user_email})
+
             history = list(self.chat_history_collection
-                .find({"user_id": user_id})
+                .find(query)
                 .sort("timestamp", -1)
                 .limit(limit))
             
-            # Convertir les ObjectId en str pour la sérialisation JSON
             for entry in history:
                 if '_id' in entry:
                     entry['_id'] = str(entry['_id'])
             
             return history
         except Exception as e:
-            print(f"Error getting user chat history: {e}")
+            print(f"Erreur lors de la récupération de l'historique: {e}")
             return []
 
-    def get_user_sessions(self, user_id):
+    def get_user_sessions(self, user_id_obj):
         try:
+            if not user_id_obj:
+                return []
+                
+            # Find the user by ObjectId to get their email (for older entries)
+            user_data = self.users_collection.find_one({"_id": user_id_obj})
+            user_email = user_data['email'] if user_data and 'email' in user_data else None
+
+            # Query for sessions using either the ObjectId or the email
+            query = {"$or": [{'user_id': user_id_obj}]}
+            if user_email:
+                query['$or'].append({'user_id': user_email})
+
             pipeline = [
-                {"$match": {"user_id": user_id}},
+                {"$match": query},
                 {"$group": {
                     "_id": "$session_id",
                     "last_message": {"$last": "$message"},
@@ -78,27 +169,69 @@ class ChatService:
                 }}
             ]
             sessions = list(self.chat_history_collection.aggregate(pipeline))
-            print(f"Retrieved {len(sessions)} sessions for user {user_id}")
+            print(f"Récupération de {len(sessions)} sessions pour l'utilisateur {user_id_obj}")
             return sessions
         except Exception as e:
-            print(f"Error getting user sessions: {e}")
+            print(f"Erreur lors de la récupération des sessions: {e}")
             return []
 
-    def get_session_history(self, session_id, user_id):
+    def get_session_history(self, session_id: str, user_id_input):
         try:
-            history = list(self.chat_history_collection
-                .find({"session_id": session_id, "user_id": user_id})
-                .sort("timestamp", 1))
+            if not session_id:
+                print("Erreur: session_id manquant.")
+                return []
+            if not user_id_input:
+                print("Erreur: user_id_input manquant.")
+                return []
+
+            user_id_obj = None
+            if isinstance(user_id_input, ObjectId):
+                user_id_obj = user_id_input
+            elif isinstance(user_id_input, str):
+                try:
+                    user_id_obj = ObjectId(user_id_input)
+                except bson_errors.InvalidId:
+                    print(f"Erreur: user_id_input '{user_id_input}' n'est pas un ObjectId valide.")
+                    return []
+            else:
+                print(f"Erreur: Type de user_id_input ({type(user_id_input)}) non supporté.")
+                return []
+
+            # Find the user by ObjectId to get their email (for older entries, if needed)
+            user_data = self.users_collection.find_one({"_id": user_id_obj})
+            user_email = None
+            if user_data and 'email' in user_data:
+                user_email = user_data['email']
             
-            # Convertir les ObjectId en str pour la sérialisation JSON
+            user_match_conditions = [{'user_id': user_id_obj}]
+            if user_email:
+                # Ensure user_email is not the same as user_id_obj if user_id was stored as string email previously
+                if str(user_id_obj) != user_email: 
+                    user_match_conditions.append({'user_id': user_email})
+            
+            mongo_query = {
+                "session_id": session_id,
+                "$or": user_match_conditions
+            }
+
+            history = list(self.chat_history_collection
+                           .find(mongo_query)
+                           .sort("timestamp", 1))
+            
+            processed_history = []
             for entry in history:
                 if '_id' in entry:
-                    entry['_id'] = str(entry['_id'])
+                    entry['_id'] = str(entry['_id']) # Convert ObjectId to string for JSON serialization
+                if 'user_id' in entry and isinstance(entry['user_id'], ObjectId):
+                    entry['user_id'] = str(entry['user_id'])
+                processed_history.append(entry)
             
-            print(f"Retrieved {len(history)} messages for session {session_id}")
-            return history
+            print(f"Récupération de {len(processed_history)} messages pour la session {session_id} et utilisateur {user_id_obj}")
+            return processed_history
         except Exception as e:
-            print(f"Error getting session history: {e}")
+            import traceback # Import traceback here for locality
+            print(f"Erreur détaillée lors de la récupération de l'historique de session pour session_id='{session_id}', user_id_input='{user_id_input}': {e}")
+            print(traceback.format_exc())
             return []
 
     def count_conversations(self):

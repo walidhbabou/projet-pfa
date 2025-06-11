@@ -8,13 +8,13 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
-data "aws_ami" "ubuntu_1804" {
+data "aws_ami" "ubuntu_2204" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["099720109477"]
 
   filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*"]
+    name   = "image-id"
+    values = ["ami-0a7d80731ae1b2435"]
   }
 }
 
@@ -34,7 +34,7 @@ resource "aws_instance" "jenkins" {
 }
 
 resource "aws_instance" "masterVM" {
-  ami                         = data.aws_ami.ubuntu_1804.id
+  ami                         = data.aws_ami.ubuntu_2204.id
   instance_type               = "t3.medium"
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.kubernetes.id]
@@ -42,8 +42,9 @@ resource "aws_instance" "masterVM" {
   key_name                    = "devops-key"
 
   root_block_device {
-    volume_type = "gp2"
-    volume_size = 30
+    volume_type           = "gp2"
+    volume_size           = 30
+    delete_on_termination = true
   }
 
   tags = {
@@ -54,7 +55,7 @@ resource "aws_instance" "masterVM" {
 }
 
 resource "aws_instance" "worker1VM" {
-  ami                         = data.aws_ami.ubuntu_1804.id
+  ami                         = data.aws_ami.ubuntu_2204.id
   instance_type               = "t3.small"
   subnet_id                   = aws_subnet.public[1].id
   vpc_security_group_ids      = [aws_security_group.kubernetes.id]
@@ -62,8 +63,9 @@ resource "aws_instance" "worker1VM" {
   key_name                    = "devops-key"
 
   root_block_device {
-    volume_type = "gp2"
-    volume_size = 30
+    volume_type           = "gp2"
+    volume_size           = 30
+    delete_on_termination = true
   }
 
   tags = {

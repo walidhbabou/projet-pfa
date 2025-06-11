@@ -1,0 +1,21 @@
+action_endpoint:
+  url: "http://localhost:5055/webhook"
+
+tracker_store:
+  type: InMemoryTrackerStore
+
+cors:
+  enabled: true
+  origins:
+    - "*"
+  allow_credentials: true
+  allow_headers:
+    - "Content-Type"
+    - "Authorization"
+    - "X-Requested-With" 
+    - "Accept"
+    - "Origin"
+    - "Access-Control-Allow-Origin"
+    - "Access-Control-Allow-Headers"
+    - "Access-Control-Allow-Methods"
+    - "Access-Control-Allow-Credentials" 

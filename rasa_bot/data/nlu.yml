@@ -7,18 +7,17 @@ nlu:
     - salut
     - hello
     - bonsoir
-    - hey
-    - salutations
     - coucou
+    - hey
 
 - intent: goodbye
   examples: |
     - au revoir
     - à bientôt
-    - à plus tard
+    - bye
     - adieu
     - bonne journée
-    - bye
+    - bonne soirée
 
 - intent: affirm
   examples: |
@@ -44,9 +43,8 @@ nlu:
     - merci
     - merci beaucoup
     - je vous remercie
-    - remerciements
+    - merci pour votre aide
     - c'est gentil
-    - je vous suis reconnaissant
 
 - intent: ask_exams
   examples: |
@@ -112,12 +110,115 @@ nlu:
     - histoire de la FSTS
     - combien d'étudiants à la FSTS
     - qui est le doyen de la faculté
+    - comment contacter la FSTS
+    - quel est le numéro de téléphone de la FSTS
+    - quel est l'email de la FSTS
+
+- intent: ask_contact_info
+  examples: |
+    - quel est le numéro de téléphone de la FSTS
+    - comment contacter la FSTS
+    - quel est l'email de la FSTS
+    - où se trouve la FSTS
+    - adresse de la FSTS
+    - coordonnées de la FSTS
+
+- intent: ask_stats
+  examples: |
+    - combien d'étudiants à la FSTS
+    - nombre d'étudiants
+    - combien d'enseignants
+    - nombre de lauréats
+    - combien de départements
+    - statistiques de la FSTS
+    - chiffres clés de la FSTS
+
+- intent: ask_formation
+  examples: |
+    - quelles sont les formations proposées
+    - qu'est-ce que le tronc commun
+    - c'est quoi la licence en sciences et techniques
+    - qu'est-ce que le master en sciences et techniques
+    - c'est quoi le cycle d'ingénieur
+    - formation continue
+    - formation initiale
+
+- intent: ask_announcements
+  examples: |
+    - quelles sont les dernières annonces
+    - y a-t-il des annonces importantes
+    - je veux voir les annonces
+    - montrez-moi les annonces
+    - quelles sont les nouvelles annonces
+    - y a-t-il des nouvelles importantes
+    - quelles sont les informations importantes
+    - je veux connaître les dernières annonces
+    - affichez les annonces
+    - montrez les annonces importantes
+
+- intent: ask_latest_news
+  examples: |
+    - quelles sont les dernières actualités
+    - y a-t-il des nouvelles
+    - quelles sont les nouvelles
+    - montrez-moi les actualités
+    - quelles sont les dernières nouvelles
+    - y a-t-il des actualités importantes
+    - je veux connaître les dernières nouvelles
+    - affichez les actualités
+    - quelles sont les informations récentes
+    - montrez les dernières nouvelles
+
+- intent: ask_events
+  examples: |
+    - quels sont les événements à venir
+    - y a-t-il des événements prévus
+    - quels sont les prochains événements
+    - montrez-moi les événements
+    - quelles sont les activités prévues
+    - y a-t-il des manifestations
+    - je veux connaître les événements
+    - affichez les événements
+    - quels sont les rendez-vous importants
+    - montrez le calendrier des événements
 
 - intent: out_of_scope
   examples: |
-    - quel est le sens de la vie
+    - je veux commander une pizza
+    - quel temps fait-il
     - raconte-moi une blague
-    - quelle est la météo aujourd'hui
-    - qui a gagné le match de foot hier
-    - comment faire une pizza
-    - qui est le président actuel
+    - jouons aux échecs
+    - quelle est la capitale de la France
+    - comment faire un gâteau
+    - quel est le meilleur restaurant
+    - comment réparer mon vélo
+    - quelle est la hauteur de la tour Eiffel
+    - comment apprendre à nager
+
+responses:
+  utter_faq_exams:
+    - text: "Les examens sont planifiés selon le calendrier académique. Veuillez consulter le site web officiel de la FSTS pour les dates précises. Pour plus de détails concernant votre filière spécifique, contactez votre département."
+
+  utter_faq_programs:
+    - text: "La FSTS propose plusieurs filières en licence et master. Pour des informations détaillées sur chaque programme, veuillez consulter la section appropriée sur le site web ou contacter le service de scolarité."
+
+  utter_faq_professors:
+    - text: "Vous pouvez trouver les coordonnées des enseignants sur le site web de la faculté ou auprès du secrétariat de votre département. La plupart des professeurs ont également des heures de permanence pendant lesquelles vous pouvez les rencontrer."
+
+  utter_faq_procedures:
+    - text: "Pour les procédures administratives, comme l'inscription ou les demandes de documents, veuillez vous adresser au service de scolarité au rez-de-chaussée du bâtiment administratif. Certains services sont également disponibles en ligne."
+
+  utter_faq_orientation:
+    - text: "Pour l'orientation et les conseils sur les débouchés professionnels, je vous recommande de contacter le service d'orientation ou de participer aux journées portes ouvertes et aux forums carrières organisés par la faculté."
+
+  utter_contact_info:
+    - text: "Voici les coordonnées de la FST Settat :\n- Téléphone : 05 23 40 07 36\n- Email : contact_fsts@uhp.ac.ma\n- Adresse : FST de Settat, Km 3, B.P. : 577 Route de Casablanca"
+
+  utter_stats:
+    - text: "Voici les chiffres clés de la FST Settat (au 31/12/2024) :\n- 4262 Étudiants\n- 928 Lauréats\n- 7 Départements\n- 205 Enseignants"
+
+  utter_formation:
+    - text: "La FST Settat propose plusieurs types de formations :\n1. Tronc Commun : Base solide en sciences fondamentales\n2. Licence en Sciences et Techniques : Formation polyvalente alliant théorie et pratique\n3. Master en Sciences et Techniques : Approfondissement des connaissances\n4. Cycle d'Ingénieur : Formation professionnelle pour des postes à responsabilités\n5. Formation continue : Pour les professionnels souhaitant se perfectionner"
+
+  utter_general_info:
+    - text: "La FST Settat est une institution d'enseignement supérieur qui forme et guide les futurs ingénieurs. Elle offre une éducation de qualité et collabore avec l'industrie pour préparer les étudiants aux défis technologiques et industriels de demain. Le doyen actuel est Pr. Abdelmajid Farchi."

@@ -1,18 +1,62 @@
-
 version: "3.1"
 
 rules:
-- rule: Say goodbye anytime the user says goodbye
+- rule: Répondre aux salutations
+  steps:
+  - intent: greet
+  - action: utter_greet
+
+- rule: Répondre aux adieux
   steps:
   - intent: goodbye
   - action: utter_goodbye
 
-- rule: Say 'Merci' anytime the user says thanks
+- rule: Répondre aux remerciements
   steps:
   - intent: thank
   - action: utter_thank
+- rule: Répondre aux questions sur les examens
+  steps:
+  - intent: ask_exams
+  - action: utter_ask_exams
 
-- rule: Out-of-scope
+- rule: Répondre aux questions sur les programmes
+  steps:
+  - intent: faq_programs
+  - action: utter_faq_programs
+
+- rule: Répondre aux questions sur les professeurs
+  steps:
+  - intent: faq_professors
+  - action: utter_faq_professors
+
+- rule: Répondre aux questions sur les procédures
+  steps:
+  - intent: faq_procedures
+  - action: utter_faq_procedures
+
+- rule: Répondre aux questions sur l'orientation
+  steps:
+  - intent: faq_orientation
+  - action: utter_faq_orientation
+
+- rule: Répondre aux questions générales
+  steps:
+  - intent: ask_general_info
+  - action: utter_general_info
+
+- rule: Répondre aux questions hors domaine
   steps:
   - intent: out_of_scope
   - action: utter_out_of_scope
+
+- rule: Répondre aux questions non disponibles
+  steps:
+  - or:
+      - intent: ask_contact_info
+      - intent: ask_stats
+      - intent: ask_formation
+      - intent: ask_announcements
+      - intent: ask_latest_news
+      - intent: ask_events
+  - action: utter_service_unavailable
