@@ -71,13 +71,14 @@ pipeline {
                     docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
                         echo "🚀 Building Frontend..."
                         sh """
-                            docker build --memory=400m --memory-swap=800m \
+                            docker build --cache-from=${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest \
+                            --memory=400m --memory-swap=800m \
                             --build-arg NODE_OPTIONS='--max_old_space_size=512' \
                             -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest ./frontend
                         """
                         sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
                         sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
-                        sh "docker system prune -a -f"
+                        sh "docker system prune -f"
                     }
                 }
             }
@@ -93,12 +94,13 @@ pipeline {
                     docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
                         echo "🚀 Building Backend..."
                         sh """
-                            docker build --memory=400m --memory-swap=800m \
+                            docker build --cache-from=${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest \
+                            --memory=400m --memory-swap=800m \
                             -t ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest ./backend
                         """
                         sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
                         sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
-                        sh "docker system prune -a -f"
+                        sh "docker system prune -f"
                     }
                 }
             }
@@ -145,6 +147,17 @@ pipeline {
                         } finally {
                             sh "docker system prune -a --volumes -f || true"
                         }
+                    }
+                }
+            }
+        }
+        
+        stage('Check Disk Space') {
+            steps {
+                script {
+                    def availableSpace = sh(script: "df / | tail -1 | awk '{print \$4}'", returnStdout: true).trim()
+                    if (availableSpace.toInteger() < 3000000) { // Moins de 3 Go disponibles
+                        error "❌ Pas assez d'espace disque disponible (${availableSpace} KB). Augmentez la taille du disque."
                     }
                 }
             }

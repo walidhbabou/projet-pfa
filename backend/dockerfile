@@ -23,7 +23,8 @@ COPY . .
 # Définit les variables d'environnement
 ENV FLASK_ENV=production \
     FLASK_HOST=0.0.0.0 \
-    FLASK_PORT=5000
+    FLASK_PORT=5000 \
+    PYTHONPATH=/app
 
 # Expose le port de l'application
 EXPOSE 5000

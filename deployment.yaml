@@ -49,6 +49,12 @@ spec:
       labels:
         app: backend
     spec:
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
       containers:
       - name: backend
         image: walidhbabou/chatbootfsts-backend:latest
@@ -64,7 +70,7 @@ spec:
           value: "http://rasa:5005"
         - name: FLASK_ENV
           value: "production"
-        - name: FLASK_HOST
+        - name: FLASK_HOST  
           value: "0.0.0.0"
         - name: FLASK_PORT
           value: "5000"
@@ -101,7 +107,9 @@ spec:
         - containerPort: 8081
         env:
         - name: VITE_API_URL
-          value: "http://44.215.111.1:30080/api"
+          value: "http://backend:5000/api"
+        - name: VITE_RASA_URL
+          value: "http://rasa:5005"
         - name: NODE_ENV
           value: "production"
         resources:
@@ -147,6 +155,7 @@ spec:
             cpu: "500m"
             memory: "512Mi"
 ---
+# Service MongoDB
 apiVersion: v1
 kind: Service
 metadata:
@@ -161,6 +170,7 @@ spec:
       port: 27017
       targetPort: 27017
 ---
+# Backend Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -174,8 +184,9 @@ spec:
     - protocol: TCP
       port: 5000
       targetPort: 5000
-      nodePort: 30080
+      nodePort: 30090
 ---
+# Service Frontend
 apiVersion: v1
 kind: Service
 metadata:
@@ -191,6 +202,7 @@ spec:
       targetPort: 8081
       nodePort: 30089
 ---
+# Rasa Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -204,4 +216,4 @@ spec:
     - protocol: TCP
       port: 5005
       targetPort: 5005
-      nodePort: 32441
+      nodePort: 30091
