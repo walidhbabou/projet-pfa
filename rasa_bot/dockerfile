@@ -1,34 +1,32 @@
 FROM python:3.10-slim
 
+# Définit le dossier de travail
 WORKDIR /app
 
-# Install system dependencies (minimal)
+# Installe les dépendances système nécessaires
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
+    build-essential \
+    libpq-dev \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/*
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Copie les fichiers de dépendances
 COPY requirements.txt .
 
-# Install Python packages en plusieurs étapes pour économiser l'espace
-RUN python -m pip install --upgrade pip --no-cache-dir && \
-    pip install --no-cache-dir wheel setuptools && \
-    pip install --no-cache-dir --no-deps rasa && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge && \
-    find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
-    find /usr/local/lib/python3.10 -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+# Installe les dépendances Python
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir rasa && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy Rasa files
+# Copie le reste des fichiers
 COPY . .
 
-# Environment variables
+# Définit les variables d'environnement
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Expose le port
 EXPOSE 5005
 
-CMD ["rasa", "run", "-m", "/app/models", "--enable-api", "--cors", "*"]
+# Commande de démarrage
+CMD ["rasa", "run", "--enable-api", "--cors", "*", "--debug"]

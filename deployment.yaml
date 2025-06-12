@@ -3,16 +3,6 @@ kind: Namespace
 metadata:
   name: chatbootfsts
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-config
-  namespace: chatbootfsts
-data:
-  MONGO_URI: "mongodb://mongo:27017/fsts_chatboot"
-  JWT_SECRET_KEY: "39NtsAHJrQh0fdR2YoqU+dX1oJWly2Vsm/yHdnOQ19Q="
-  RASA_API_URL: "http://rasa:5005"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
