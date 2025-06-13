@@ -112,7 +112,7 @@ const Index = () => {
               {[
                 { number: "15+", label: "Filières" },
                 { number: "3000+", label: "Étudiants" },
-                { number: "100+", label: "Enseignants" },
+                { number: "1000+", label: "Enseignants" },
                 { number: "20+", label: "Années d'excellence" }
               ].map((stat, index) => (
                 <div

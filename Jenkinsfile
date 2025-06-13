@@ -13,8 +13,12 @@ pipeline {
         DOCKERHUB_REPO_BACKEND = 'chatbootfsts-backend'
         DOCKERHUB_REPO_RASA = 'chatbootfsts-rasa'
         KUBE_NAMESPACE = 'chatbootfsts'
-        SSH_SERVER = 'ubuntu@44.215.111.1'
+        SSH_SERVER = 'ubuntu@52.54.79.139'
         DOCKER_BUILDKIT = '1'
+    }
+    
+    triggers {
+        githubPush()
     }
     
     stages {
@@ -78,7 +82,7 @@ pipeline {
                         """
                         sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
                         sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_FRONTEND}:latest"
-                        sh "docker system prune -f"
+                        sh "docker system prune -a -f"
                     }
                 }
             }
@@ -100,7 +104,7 @@ pipeline {
                         """
                         sh "docker push ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
                         sh "docker rmi ${DOCKERHUB_USER}/${DOCKERHUB_REPO_BACKEND}:latest"
-                        sh "docker system prune -f"
+                        sh "docker system prune -a -f"
                     }
                 }
             }
