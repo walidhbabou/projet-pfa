@@ -107,7 +107,7 @@ spec:
         - containerPort: 8081
         env:
         - name: VITE_API_URL
-          value: "http://backend:5000/api"
+          value: "http://52.54.79.139:30090/api"
         - name: VITE_RASA_URL
           value: "http://rasa:5005"
         - name: NODE_ENV
