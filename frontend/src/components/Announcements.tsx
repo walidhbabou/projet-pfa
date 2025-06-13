@@ -48,7 +48,7 @@ const Announcements = () => {
 
         setFilteredAnnouncements(filtered);
       } catch (error) {
-        console.error('Error fetching announcements:', error);
+        console.error('Error fetching to announcements:', error);
       } finally {
         setLoading(false);
       }
