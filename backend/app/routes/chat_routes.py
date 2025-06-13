@@ -18,33 +18,29 @@ def chat():
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "No data provided"}), 400
+
+        # Validation stricte des formats
         if 'message' not in data or not isinstance(data['message'], str):
             return jsonify({"success": False, "error": "Valid message is required"}), 400
 
-        current_user_id = get_jwt_identity()
-        print(f"[chat_routes.py] chat(): current_user_id from JWT: {current_user_id}")
-        if not current_user_id:
-            return jsonify({"success": False, "error": "User not authenticated"}), 401
-        
-        try:
-            user_id_obj = ObjectId(current_user_id)
-            print(f"[chat_routes.py] chat(): Converted user_id_obj: {user_id_obj}")
-        except InvalidId:
-            print(f"[chat_routes.py] chat(): Invalid ObjectId received for user_id: {current_user_id}")
-            return jsonify({"success": False, "error": "Invalid user ID format"}), 422
-
-        message = data['message'].strip()
-        session_id = data.get('session_id')
-        if session_id and not isinstance(session_id, str):
+        if 'session_id' in data and not isinstance(data['session_id'], str):
             return jsonify({"success": False, "error": "Invalid session_id format"}), 400
 
-        response = chat_service.get_rasa_response(message)
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return jsonify({"success": False, "error": "User not authenticated"}), 401
 
+        try:
+            user_id_obj = ObjectId(current_user_id)
+        except InvalidId:
+            return jsonify({"success": False, "error": "Invalid user ID format"}), 422
+
+        response = chat_service.get_rasa_response(data['message'].strip())
         session_id = chat_service.save_to_chat_history(
             user_id=user_id_obj,
-            message=message,
+            message=data['message'].strip(),
             response=response,
-            session_id=session_id
+            session_id=data.get('session_id')
         )
 
         return jsonify({
@@ -53,7 +49,7 @@ def chat():
                 "response": response,
                 "session_id": session_id
             }
-        })
+        }), 200
 
     except Exception as e:
         print(f"[chat_routes.py] Chat error: {e}")
@@ -138,4 +134,4 @@ def get_session_history(session_id):
         })
     except Exception as e:
         print(f"[chat_routes.py] Get session history error: {e}")
-        return jsonify({"success": False, "error": "Failed to get session history"}), 500 
+        return jsonify({"success": False, "error": "Failed to get session history"}), 500

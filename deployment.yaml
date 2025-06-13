@@ -67,7 +67,7 @@ spec:
         - name: JWT_SECRET_KEY
           value: "39NtsAHJrQh0fdR2YoqU+dX1oJWly2Vsm/yHdnOQ19Q="
         - name: RASA_API_URL
-          value: "http://rasa:5005"
+          value: "http://rasa:5005"  # URL de Rasa
         - name: FLASK_ENV
           value: "production"
         - name: FLASK_HOST  
@@ -107,9 +107,9 @@ spec:
         - containerPort: 8081
         env:
         - name: VITE_API_URL
-          value: "http://52.54.79.139:30090/api"
+          value: "http://52.54.79.139:30090/api"  # URL du backend
         - name: VITE_RASA_URL
-          value: "http://rasa:5005"
+          value: "http://rasa:5005"  # URL de Rasa
         - name: NODE_ENV
           value: "production"
         resources:

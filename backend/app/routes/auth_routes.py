@@ -23,6 +23,13 @@ def register():
                 "message": "Email et mot de passe requis"
             }), 400
 
+        # Validation stricte des formats
+        if not isinstance(data['email'], str) or not isinstance(data['password'], str):
+            return jsonify({
+                "success": False,
+                "message": "Email et mot de passe doivent être des chaînes de caractères"
+            }), 400
+
         token, user = auth_service.register_user(
             email=data['email'],
             password=data['password'],
@@ -231,4 +238,4 @@ def refresh_token(current_user):
         return jsonify({
             'success': False,
             'message': 'Erreur lors du rafraîchissement du token'
-        }), 500 
+        }), 500
