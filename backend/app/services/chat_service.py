@@ -11,69 +11,22 @@ class ChatService:
 
     def get_rasa_response(self, message):
         try:
-            if not message or not isinstance(message, str):
-                return "Message invalide. Veuillez réessayer."
-
-            print(f"\n=== Communication avec Rasa ===")
-            print(f"Message à envoyer: {message}")
-            print(f"URL Rasa: {Config.RASA_API_URL}/webhooks/rest/webhook")
-            
-            # Configuration de la requête
-            headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-            
-            payload = {
-                "sender": "user",
-                "message": message
-            }
-            
-            print(f"Payload: {payload}")
-            print(f"Headers: {headers}")
-            
-            # Envoi de la requête
+            print(f"Message envoyé à Rasa: {message}")
             response = requests.post(
                 f"{Config.RASA_API_URL}/webhooks/rest/webhook",
-                json=payload,
-                headers=headers,
+                json={"sender": "user", "message": message},
+                headers={"Content-Type": "application/json"},
                 timeout=15
             )
-            
-            print(f"Réponse de Rasa - Status: {response.status_code}")
-            print(f"Réponse de Rasa - Headers: {response.headers}")
-            print(f"Réponse de Rasa - Contenu: {response.text}")
-            
+            print(f"Réponse de Rasa: {response.status_code}, {response.text}")
             if response.status_code == 200:
                 data = response.json()
-                print(f"Données parsées: {data}")
-                
-                if data and len(data) > 0:
-                    if "text" in data[0]:
-                        return data[0]["text"]
-                    elif "custom" in data[0]:
-                        return data[0]["custom"]
-                    else:
-                        print(f"Format de réponse inattendu: {data[0]}")
-                        return "Je suis désolé, je n'ai pas compris votre message."
-                else:
-                    print("Réponse vide de Rasa")
-                return "Je suis désolé, je n'ai pas compris votre message."
-            else:
-                print(f"Erreur HTTP: {response.status_code}")
-            return "Désolé, je rencontre des problèmes techniques."
-                
-        except requests.Timeout:
-            print("Timeout lors de la communication avec Rasa")
-            return "Désolé, le service est temporairement indisponible. Veuillez réessayer plus tard."
-        except requests.RequestException as e:
-            print(f"Erreur de communication avec Rasa: {e}")
-            return "Désolé, je rencontre des problèmes techniques."
+                if data and "text" in data[0]:
+                    return data[0]["text"]
+            return "Je suis désolé, je n'ai pas compris votre message."
         except Exception as e:
-            print(f"Erreur inattendue: {e}")
-            import traceback
-            print(f"Traceback: {traceback.format_exc()}")
-            return "Désolé, une erreur inattendue s'est produite."
+            print(f"Erreur communication avec Rasa: {e}")
+            return "Désolé, je rencontre des problèmes techniques."
 
     def save_to_chat_history(self, user_id, message, response, session_id=None):
         try:

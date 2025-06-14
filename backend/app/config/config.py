@@ -61,7 +61,7 @@ class Config:
     DEBUG = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
     
     # Rasa configuration
-    RASA_API_URL = os.getenv("RASA_API_URL", "http://localhost:5005")
+    RASA_API_URL = os.getenv("RASA_API_URL", "http://rasa:5005")
     
     @classmethod
     def init_app(cls, app):
@@ -71,4 +71,4 @@ class Config:
         print(f"CORS Origins: {cls.CORS_ORIGINS}")
         print(f"Debug Mode: {cls.DEBUG}")
         print(f"JWT Secret Key: {'*' * 10}{cls.JWT_SECRET_KEY[-5:] if cls.JWT_SECRET_KEY else 'Non défini'}")
-        print("✅ Configuration terminée") 
+        print("✅ Configuration terminée")

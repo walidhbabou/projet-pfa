@@ -4,12 +4,12 @@ from flask_jwt_extended import JWTManager
 from datetime import timedelta
 from app.config.config import Config
 from app.database.mongodb import init_db, get_users_collection
-from .models.user import User  # Utilisez un chemin relatif
 from .routes.auth_routes import auth_bp, init_auth_routes
 from .routes.chat_routes import chat_bp, init_chat_routes
 from .routes.admin_routes import admin_routes
 from .routes.announcement_routes import announcement_bp, init_announcement_routes
 from .services.user_service import UserService
+from .models.user import User  # Utilisez un chemin relatif
 
 def create_app(config_class=Config):
     app = Flask(__name__)
