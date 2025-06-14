@@ -1,8 +1,8 @@
 import axios, { AxiosRequestConfig, InternalAxiosRequestConfig, AxiosError } from 'axios';
 
 // Récupérer l'URL de l'API depuis les variables d'environnement Vite ou utiliser l'URL de production
-const API_URL = import.meta.env.VITE_API_URL || 'http://52.54.79.139:30090/api';
-const RASA_URL = import.meta.env.VITE_RASA_URL || 'http://52.54.79.139:30091';
+const API_URL = import.meta.env.VITE_API_URL || 'http://18.235.3.212:30090/api';
+const RASA_URL = import.meta.env.VITE_RASA_URL || 'http://18.235.3.212:30091';
 const IS_DEV = import.meta.env.DEV;
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 seconde

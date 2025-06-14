@@ -107,7 +107,7 @@ spec:
         - containerPort: 8081
         env:
         - name: VITE_API_URL
-          value: "http://52.54.79.139:30090/api"  # URL du backend
+          value: "http://18.235.3.212:30090/api"  # URL du backend
         - name: VITE_RASA_URL
           value: "http://rasa:5005"  # URL de Rasa
         - name: NODE_ENV
@@ -148,12 +148,12 @@ spec:
           value: "5005"
         command: ["rasa", "run", "--enable-api", "--cors", "*", "--debug"]
         resources:
-          limits:
-            cpu: "1"
-            memory: "1Gi"
           requests:
-            cpu: "500m"
             memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
 ---
 # Service MongoDB
 apiVersion: v1

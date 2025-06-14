@@ -21,7 +21,7 @@ def create_app(config_class=Config):
     # Configuration CORS simplifiée
     CORS(app, 
          resources={r"/*": {
-             "origins": ["http://localhost:8081", "http://127.0.0.1:8081", "http://52.54.79.139:30089"],
+             "origins": ["http://localhost:8081", "http://127.0.0.1:8081", "http://18.235.3.212:30089"],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
              "allow_headers": ["Content-Type", "Authorization", "Accept", "Accept-Language", "Content-Language"],
              "expose_headers": ["Content-Type", "Authorization"],
